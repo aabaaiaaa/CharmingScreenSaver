@@ -41,7 +41,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the Sandy theme with: warm amber/tan/gold gradient background, tiny sand grain particles drifting slowly to the right, 3-4 smooth dune curves at the lower portion of the screen that shift slowly over time, and a subtle heat shimmer effect (thin horizontal wavy lines with very low opacity).
 
 ### TASK-006: Implement the Snowy visualisation
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-003
 - **Description**: Create the Snowy theme with: soft grey-blue to white gradient background, 80-90 snowflake particles of varying sizes falling gently with slight horizontal drift that changes over time using sine-wave modulation, and a subtle snow accumulation effect at the bottom of the screen (white curved area).
