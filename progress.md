@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 18
-- **Completed**: 16
-- **Remaining**: 2
-- **Last Updated**: 2026-02-13T10:54:24.641Z
+- **Completed**: 17
+- **Remaining**: 1
+- **Last Updated**: 2026-02-13T10:55:08.380Z
 
 ## Iteration Log
 
@@ -135,4 +135,12 @@
 - **Exit Status**: success
 - **Tokens**: 377,926 total (2,275 in, 4,643 out, 19,992 cache-create, 351,016 cache-read)
 - **Cost**: $0.4279
+
+### Iteration 17 - 2026-02-13T10:54:27.140Z
+- **Task Completed**: TASK-017
+- **Summary**: Completed Add scene title display in bottom-right corner
+- **Duration**: 41s
+- **Exit Status**: success
+- **Tokens**: 156,165 total (2,412 in, 1,558 out, 10,748 cache-create, 141,447 cache-read)
+- **Cost**: $0.1889
 

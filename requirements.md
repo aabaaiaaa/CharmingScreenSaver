@@ -107,7 +107,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Connect the settings panel controls to the application state: theme buttons switch the active visualisation and re-initialise particles, clock type buttons switch between digital/analogue/sun-moon/none, opacity slider updates clock opacity in real time. Highlight the active button for both theme and clock type. Update the scene title text in the bottom-right corner when the theme changes. Ensure smooth transitions between themes.
 
 ### TASK-017: Add scene title display in bottom-right corner
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-001
 - **Description**: Show the name of the currently active visualisation (e.g. "Watery", "Spacey") in the bottom-right corner of the screen using semi-transparent text (~18% opacity) so it's visible but not distracting. Use a light font weight, lowercase, with subtle letter spacing. Update it whenever the theme changes.
