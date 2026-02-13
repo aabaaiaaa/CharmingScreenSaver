@@ -113,7 +113,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Show the name of the currently active visualisation (e.g. "Watery", "Spacey") in the bottom-right corner of the screen using semi-transparent text (~18% opacity) so it's visible but not distracting. Use a light font weight, lowercase, with subtle letter spacing. Update it whenever the theme changes.
 
 ### TASK-018: Final polish, testing, and cross-browser check
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-004, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010, TASK-011, TASK-012, TASK-016, TASK-017
 - **Description**: Test all 9 visualisations to ensure they render correctly and feel calming. Verify all 3 clock modes work with opacity control. Test fullscreen mode. Handle window resize gracefully (re-calculate canvas dimensions). Ensure the settings panel opens/closes smoothly and auto-hides controls work. Check keyboard shortcuts (F for fullscreen, Escape to close settings). Fix any visual glitches or performance issues.

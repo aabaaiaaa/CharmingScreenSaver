@@ -373,8 +373,9 @@
             // Keyboard shortcut: 'F' for fullscreen
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'f' || e.key === 'F') {
-                    // Don't trigger if the user is typing in an input
+                    // Don't trigger if the user is typing in an input or settings panel is open
                     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                    if (document.getElementById('settings-panel').classList.contains('open')) return;
                     toggleFullscreen();
                 }
             });
@@ -796,6 +797,7 @@
 
             document.addEventListener('mousemove', showControls);
             document.addEventListener('mousedown', showControls);
+            document.addEventListener('touchstart', showControls);
 
             // Start the initial hide timer
             showControls();
@@ -1299,9 +1301,9 @@
                         }
                     },
 
-                    drawForeground: function (ctx, w, h, state) {
+                    drawForeground: function (ctx, w, h, state, dt) {
                         var t = state.timeElapsed;
-                        var dt = 0.016; // approximate frame dt
+                        dt = dt || 0.016;
 
                         // --- Shooting star ---
                         shootingStar.timer -= dt;
@@ -1497,6 +1499,8 @@
                 // Wind current line state (persistent across frames)
                 var windLines = [];
                 var windLinesInited = false;
+                var windLinesW = 0;
+                var windLinesH = 0;
                 var WIND_LINE_COUNT = 8;
 
                 function initWindLines(w, h) {
@@ -1514,6 +1518,8 @@
                         });
                     }
                     windLinesInited = true;
+                    windLinesW = w;
+                    windLinesH = h;
                 }
 
                 return {
@@ -1521,7 +1527,7 @@
 
                     spawn: function (w, h) {
                         // Leaf-like ellipse particles
-                        if (!windLinesInited) initWindLines(w, h);
+                        if (!windLinesInited || windLinesW !== w || windLinesH !== h) initWindLines(w, h);
                         var leafHues = [
                             { r: 90, g: 140, b: 60 },   // green
                             { r: 120, g: 160, b: 50 },  // light green
@@ -1600,7 +1606,7 @@
                         var t = state.timeElapsed;
                         var wind = getWindStrength(t);
 
-                        if (!windLinesInited || windLines.length === 0) initWindLines(w, h);
+                        if (!windLinesInited || windLines.length === 0 || windLinesW !== w || windLinesH !== h) initWindLines(w, h);
 
                         // Flowing wind current lines - thin semi-transparent horizontal curves
                         ctx.save();
@@ -1739,8 +1745,8 @@
                         }
                     },
 
-                    drawForeground: function (ctx, w, h, state) {
-                        var dt = 0.016; // approximate frame dt
+                    drawForeground: function (ctx, w, h, state, dt) {
+                        dt = dt || 0.016;
 
                         // --- Lightning flash ---
                         lightning.timer -= dt;
@@ -2024,9 +2030,9 @@
             }
 
             // Re-initialise particles for a new theme
-            function reinitialiseParticles(themeName) {
+            function reinitialiseParticles(themeName, preserveTime) {
                 state.currentTheme = themeName;
-                state.timeElapsed = 0;
+                if (!preserveTime) state.timeElapsed = 0;
                 state.particles = spawnParticles(themeName);
             }
 
@@ -2054,7 +2060,7 @@
                 drawParticles();
 
                 // Draw foreground effects
-                config.drawForeground(ctx, w, h, state);
+                config.drawForeground(ctx, w, h, state, dt);
 
                 // Cross-fade transition overlay (old frame fading out)
                 if (transition.active) {
@@ -2082,7 +2088,7 @@
             window.addEventListener('resize', function () {
                 transition.active = false;
                 transition.snapshotCanvas = null;
-                reinitialiseParticles(state.currentTheme);
+                reinitialiseParticles(state.currentTheme, true);
             });
 
             // --- Initialise and start ---
