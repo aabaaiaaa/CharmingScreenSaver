@@ -101,7 +101,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: When clock type is Sun & Moon, draw a sun or moon on the main canvas that tracks across the screen in an arc to indicate the time. Daytime (6am-6pm): sun arcs from left horizon to right horizon, peaking at noon. Nighttime (6pm-6am): moon arcs similarly, peaking at midnight. Draw a subtle dotted arc path and horizon line. Add time labels (6am/noon/6pm or 6pm/midnight/6am). Sun should have a warm glow and subtle rays. Moon should have a crescent shadow and cool glow. Apply the user-configured opacity.
 
 ### TASK-016: Wire settings to state and connect all components
-- **Status**: pending
+- **Status**: done
 - **Priority**: high
 - **Dependencies**: TASK-002, TASK-003, TASK-013, TASK-014, TASK-015
 - **Description**: Connect the settings panel controls to the application state: theme buttons switch the active visualisation and re-initialise particles, clock type buttons switch between digital/analogue/sun-moon/none, opacity slider updates clock opacity in real time. Highlight the active button for both theme and clock type. Update the scene title text in the bottom-right corner when the theme changes. Ensure smooth transitions between themes.

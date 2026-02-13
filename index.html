@@ -428,11 +428,45 @@
             const themeBtns = document.querySelectorAll('.theme-btn');
             const sceneTitle = document.getElementById('scene-title');
 
+            // Transition state for smooth cross-fade between themes
+            var transition = {
+                active: false,
+                progress: 0,
+                duration: 0.8, // seconds
+                snapshotCanvas: null
+            };
+
+            function switchTheme(themeName) {
+                if (themeName === state.currentTheme) return;
+
+                // Capture snapshot of current frame into offscreen canvas for cross-fade
+                try {
+                    var snap = document.createElement('canvas');
+                    snap.width = canvas.width;
+                    snap.height = canvas.height;
+                    snap.getContext('2d').drawImage(canvas, 0, 0);
+                    transition.snapshotCanvas = snap;
+                    transition.active = true;
+                    transition.progress = 0;
+                } catch (e) {
+                    transition.active = false;
+                }
+
+                // Update active button highlight
+                themeBtns.forEach(function (b) { b.classList.remove('active'); });
+                var targetBtn = document.querySelector('.theme-btn[data-theme="' + themeName + '"]');
+                if (targetBtn) targetBtn.classList.add('active');
+
+                // Update scene title
+                sceneTitle.textContent = themeName;
+
+                // Re-initialise particles for the new theme
+                reinitialiseParticles(themeName);
+            }
+
             themeBtns.forEach(function (btn) {
                 btn.addEventListener('click', function () {
-                    themeBtns.forEach(function (b) { b.classList.remove('active'); });
-                    btn.classList.add('active');
-                    sceneTitle.textContent = btn.dataset.theme;
+                    switchTheme(btn.dataset.theme);
                 });
             });
 
@@ -983,13 +1017,6 @@
                 state.particles = spawnParticles(themeName);
             }
 
-            // --- Wire theme buttons to particle reinitialisation ---
-            themeBtns.forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    reinitialiseParticles(btn.dataset.theme);
-                });
-            });
-
             // --- Animation loop ---
             var lastTimestamp = 0;
 
@@ -1016,6 +1043,20 @@
                 // Draw foreground effects
                 config.drawForeground(ctx, w, h, state);
 
+                // Cross-fade transition overlay (old frame fading out)
+                if (transition.active) {
+                    transition.progress += dt / transition.duration;
+                    if (transition.progress >= 1) {
+                        transition.active = false;
+                        transition.snapshotCanvas = null;
+                    } else if (transition.snapshotCanvas) {
+                        ctx.save();
+                        ctx.globalAlpha = 1 - transition.progress;
+                        ctx.drawImage(transition.snapshotCanvas, 0, 0);
+                        ctx.restore();
+                    }
+                }
+
                 // Draw Sun & Moon clock on the main canvas
                 drawSunMoonClock(ctx, w, h);
 
@@ -1026,6 +1067,8 @@
 
             // --- Handle window resize: re-spawn particles ---
             window.addEventListener('resize', function () {
+                transition.active = false;
+                transition.snapshotCanvas = null;
                 reinitialiseParticles(state.currentTheme);
             });
 
