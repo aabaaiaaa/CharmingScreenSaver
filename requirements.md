@@ -65,7 +65,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the Colourful theme with: slowly rotating rainbow hue gradient background, ~45 soft glowing circle particles in rainbow hues that drift gently (drawn as radial gradients), and 4-5 aurora-like wave layers with hue-shifting fills. All colours should shift gradually over time for a dreamy, kaleidoscopic feel.
 
 ### TASK-010: Implement the Windy visualisation
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-003
 - **Description**: Create the Windy theme with: soft sky-blue gradient background, ~35 leaf-like ellipse particles that are swept across the screen from left to right with rotation and vertical wobble, wind gust effects (varying speed over time using sine waves), and flowing wind current lines (thin semi-transparent horizontal curves that show air movement direction).

@@ -1484,6 +1484,156 @@
                 }
             };
 
+            // --- Windy theme ---
+            themes.windy = (function () {
+                // Wind gust state - varies over time using layered sine waves
+                function getWindStrength(t) {
+                    return 1.0
+                        + Math.sin(t * 0.3) * 0.4
+                        + Math.sin(t * 0.7 + 1.2) * 0.25
+                        + Math.sin(t * 1.5 + 3.0) * 0.15;
+                }
+
+                // Wind current line state (persistent across frames)
+                var windLines = [];
+                var windLinesInited = false;
+                var WIND_LINE_COUNT = 8;
+
+                function initWindLines(w, h) {
+                    windLines = [];
+                    for (var i = 0; i < WIND_LINE_COUNT; i++) {
+                        windLines.push({
+                            y: h * (0.1 + 0.8 * (i / (WIND_LINE_COUNT - 1))),
+                            speed: 60 + Math.random() * 80,
+                            offset: Math.random() * w,
+                            amp: 8 + Math.random() * 15,
+                            freq: 0.003 + Math.random() * 0.004,
+                            opacity: 0.04 + Math.random() * 0.06,
+                            length: w * (0.3 + Math.random() * 0.4),
+                            phase: Math.random() * Math.PI * 2
+                        });
+                    }
+                    windLinesInited = true;
+                }
+
+                return {
+                    targetCount: 35,
+
+                    spawn: function (w, h) {
+                        // Leaf-like ellipse particles
+                        if (!windLinesInited) initWindLines(w, h);
+                        var leafHues = [
+                            { r: 90, g: 140, b: 60 },   // green
+                            { r: 120, g: 160, b: 50 },  // light green
+                            { r: 180, g: 130, b: 40 },  // amber
+                            { r: 160, g: 90, b: 30 },   // brown
+                            { r: 200, g: 160, b: 50 },  // golden
+                            { r: 140, g: 70, b: 40 }    // dark brown
+                        ];
+                        var col = leafHues[Math.floor(Math.random() * leafHues.length)];
+                        return {
+                            x: -20 - Math.random() * w * 0.3,
+                            y: Math.random() * h,
+                            rx: 4 + Math.random() * 6,     // ellipse horizontal radius
+                            ry: 2 + Math.random() * 3,     // ellipse vertical radius
+                            rotation: Math.random() * Math.PI * 2,
+                            rotationSpeed: 1.5 + Math.random() * 3,
+                            wobbleAmp: 30 + Math.random() * 50,
+                            wobbleSpeed: 0.5 + Math.random() * 1.0,
+                            wobbleOffset: Math.random() * Math.PI * 2,
+                            baseSpeed: 80 + Math.random() * 100,
+                            opacity: 0.4 + Math.random() * 0.4,
+                            r: col.r,
+                            g: col.g,
+                            b: col.b
+                        };
+                    },
+
+                    update: function (p, dt, w, h, state) {
+                        var wind = getWindStrength(state.timeElapsed);
+                        // Move horizontally with wind
+                        p.x += p.baseSpeed * wind * dt;
+                        // Vertical wobble
+                        p.y += Math.sin(state.timeElapsed * p.wobbleSpeed + p.wobbleOffset) * p.wobbleAmp * dt;
+                        // Rotate
+                        p.rotation += p.rotationSpeed * wind * dt;
+                        // Recycle when past the right edge
+                        if (p.x > w + 30) return false;
+                        // Wrap vertically
+                        if (p.y < -20) p.y = h + 20;
+                        if (p.y > h + 20) p.y = -20;
+                        return true;
+                    },
+
+                    draw: function (p, ctx) {
+                        ctx.save();
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.rotation);
+                        // Draw leaf-like ellipse
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(' + p.r + ', ' + p.g + ', ' + p.b + ', ' + p.opacity + ')';
+                        ctx.fill();
+                        // Leaf vein (subtle centre line)
+                        ctx.beginPath();
+                        ctx.moveTo(-p.rx * 0.8, 0);
+                        ctx.lineTo(p.rx * 0.8, 0);
+                        ctx.strokeStyle = 'rgba(' + Math.max(0, p.r - 30) + ', ' + Math.max(0, p.g - 30) + ', ' + Math.max(0, p.b - 20) + ', ' + (p.opacity * 0.5) + ')';
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                        ctx.restore();
+                    },
+
+                    drawBackground: function (ctx, w, h, state) {
+                        // Soft sky-blue gradient background
+                        var grad = ctx.createLinearGradient(0, 0, 0, h);
+                        grad.addColorStop(0, '#6ba3c7');
+                        grad.addColorStop(0.3, '#85b8d8');
+                        grad.addColorStop(0.6, '#a0cce5');
+                        grad.addColorStop(0.85, '#b8dced');
+                        grad.addColorStop(1, '#c8e4f0');
+                        ctx.fillStyle = grad;
+                        ctx.fillRect(0, 0, w, h);
+                    },
+
+                    drawForeground: function (ctx, w, h, state) {
+                        var t = state.timeElapsed;
+                        var wind = getWindStrength(t);
+
+                        if (!windLinesInited || windLines.length === 0) initWindLines(w, h);
+
+                        // Flowing wind current lines - thin semi-transparent horizontal curves
+                        ctx.save();
+                        ctx.lineWidth = 1;
+                        ctx.lineCap = 'round';
+
+                        for (var i = 0; i < windLines.length; i++) {
+                            var wl = windLines[i];
+                            // Advance the offset so the line moves across the screen
+                            var lineX = (wl.offset + t * wl.speed * wind) % (w + wl.length) - wl.length * 0.3;
+                            var baseY = wl.y + Math.sin(t * 0.2 + wl.phase) * 20;
+
+                            ctx.beginPath();
+                            ctx.strokeStyle = 'rgba(255, 255, 255, ' + (wl.opacity * wind) + ')';
+
+                            var segments = 60;
+                            for (var s = 0; s <= segments; s++) {
+                                var frac = s / segments;
+                                var px = lineX + frac * wl.length;
+                                var py = baseY + Math.sin(px * wl.freq + t * 1.5 + wl.phase) * wl.amp
+                                              + Math.sin(px * wl.freq * 2.3 + t * 0.8 + wl.phase * 2) * wl.amp * 0.3;
+
+                                // Fade at the ends of the line for a soft look
+                                if (s === 0) ctx.moveTo(px, py);
+                                else ctx.lineTo(px, py);
+                            }
+                            ctx.stroke();
+                        }
+                        ctx.restore();
+                    }
+                };
+            })();
+
             // Default/placeholder theme configuration
             function getDefaultThemeConfig() {
                 return {

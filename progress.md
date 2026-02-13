@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 18
-- **Completed**: 13
-- **Remaining**: 5
-- **Last Updated**: 2026-02-13T10:50:32.196Z
+- **Completed**: 14
+- **Remaining**: 4
+- **Last Updated**: 2026-02-13T10:51:42.527Z
 
 ## Iteration Log
 
@@ -111,4 +111,12 @@
 - **Exit Status**: success
 - **Tokens**: 305,244 total (1,839 in, 3,206 out, 34,727 cache-create, 265,472 cache-read)
 - **Cost**: $0.4391
+
+### Iteration 14 - 2026-02-13T10:50:34.723Z
+- **Task Completed**: TASK-010
+- **Summary**: Completed Implement the Windy visualisation
+- **Duration**: 68s
+- **Exit Status**: success
+- **Tokens**: 318,834 total (1,984 in, 3,329 out, 37,455 cache-create, 276,066 cache-read)
+- **Cost**: $0.4653
 
