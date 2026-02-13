@@ -95,7 +95,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create an analogue clock rendered on a small overlay canvas (~220x220px) centred on screen. Draw: a subtle circular face with semi-transparent background, 12 hour markers (larger at 12/3/6/9), hour hand, minute hand, and a smooth sweeping second hand. Apply the user-configured opacity. Hide when clock type is not set to Analogue.
 
 ### TASK-015: Implement the Sun & Moon sky tracker clock
-- **Status**: pending
+- **Status**: done
 - **Priority**: high
 - **Dependencies**: TASK-003
 - **Description**: When clock type is Sun & Moon, draw a sun or moon on the main canvas that tracks across the screen in an arc to indicate the time. Daytime (6am-6pm): sun arcs from left horizon to right horizon, peaking at noon. Nighttime (6pm-6am): moon arcs similarly, peaking at midnight. Draw a subtle dotted arc path and horizon line. Add time labels (6am/noon/6pm or 6pm/midnight/6am). Sun should have a warm glow and subtle rays. Moon should have a crescent shadow and cool glow. Apply the user-configured opacity.
