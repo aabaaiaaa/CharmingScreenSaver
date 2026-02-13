@@ -17,7 +17,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create `index.html` with a fullscreen canvas element, basic CSS reset, and the overlay structure for clock, settings panel, controls (settings gear + fullscreen button), and scene title element in the bottom-right corner. Wire up fullscreen toggle using the Fullscreen API. Also support pressing 'F' as a keyboard shortcut. Ensure the page fills the viewport with no scrollbars and has a dark background.
 
 ### TASK-002: Build the settings panel UI
-- **Status**: pending
+- **Status**: done
 - **Priority**: high
 - **Dependencies**: TASK-001
 - **Description**: Create a slide-out settings panel on the left side with: (1) a 3x3 grid of theme buttons for the 9 visualisations (Watery, Sandy, Snowy, Wavey, Spacey, Colourful, Windy, Stormy, Sunny), (2) clock type selector with options for Digital, Analogue, Sun & Moon, and None, (3) a clock opacity slider (0-100%). Style with a semi-transparent dark backdrop-blur background. Add a gear icon button to toggle the panel and a close button inside. Auto-hide the controls after 3 seconds of mouse inactivity and show them again on mouse movement.

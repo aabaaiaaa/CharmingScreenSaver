@@ -100,6 +100,155 @@
             background: rgba(255, 255, 255, 0.2);
         }
 
+        /* Settings panel internal layout */
+        .settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .settings-title {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+
+        .settings-close-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease;
+            line-height: 1;
+        }
+
+        .settings-close-btn:hover {
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+        .settings-section {
+            margin-bottom: 24px;
+        }
+
+        .settings-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            opacity: 0.5;
+            margin-bottom: 10px;
+        }
+
+        /* 3x3 Theme grid */
+        .theme-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .theme-btn {
+            padding: 10px 4px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .theme-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
+        .theme-btn.active {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #fff;
+        }
+
+        /* Clock type selector */
+        .clock-type-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .clock-type-btn {
+            padding: 9px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .clock-type-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
+        .clock-type-btn.active {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #fff;
+        }
+
+        /* Opacity slider */
+        .opacity-slider {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .opacity-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        .opacity-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border: none;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        #opacity-value {
+            float: right;
+            opacity: 0.8;
+            font-variant-numeric: tabular-nums;
+        }
+
         /* Scene title - bottom-right corner */
         #scene-title {
             position: absolute;
@@ -134,7 +283,42 @@
     </div>
 
     <!-- Settings panel (slides in from left) -->
-    <div id="settings-panel"></div>
+    <div id="settings-panel">
+        <div class="settings-header">
+            <span class="settings-title">Settings</span>
+            <button class="settings-close-btn" id="btn-close-settings" title="Close">&times;</button>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-label">Theme</div>
+            <div class="theme-grid">
+                <button class="theme-btn active" data-theme="watery">Watery</button>
+                <button class="theme-btn" data-theme="sandy">Sandy</button>
+                <button class="theme-btn" data-theme="snowy">Snowy</button>
+                <button class="theme-btn" data-theme="wavey">Wavey</button>
+                <button class="theme-btn" data-theme="spacey">Spacey</button>
+                <button class="theme-btn" data-theme="colourful">Colourful</button>
+                <button class="theme-btn" data-theme="windy">Windy</button>
+                <button class="theme-btn" data-theme="stormy">Stormy</button>
+                <button class="theme-btn" data-theme="sunny">Sunny</button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-label">Clock</div>
+            <div class="clock-type-group">
+                <button class="clock-type-btn active" data-clock="digital">Digital</button>
+                <button class="clock-type-btn" data-clock="analogue">Analogue</button>
+                <button class="clock-type-btn" data-clock="sunmoon">Sun &amp; Moon</button>
+                <button class="clock-type-btn" data-clock="none">None</button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-label">Clock Opacity <span id="opacity-value">70%</span></div>
+            <input type="range" id="clock-opacity" class="opacity-slider" min="0" max="100" value="70">
+        </div>
+    </div>
 
     <!-- Scene title in the bottom-right corner -->
     <div id="scene-title">watery</div>
@@ -172,28 +356,80 @@
                 }
             });
 
-            // --- Settings panel toggle ---
+            // --- Settings panel & controls ---
+            const controls = document.getElementById('controls');
             const settingsPanel = document.getElementById('settings-panel');
             const btnSettings = document.getElementById('btn-settings');
-
-            btnSettings.addEventListener('click', function () {
-                settingsPanel.classList.toggle('open');
-            });
-
-            // --- Auto-hide controls after inactivity ---
-            const controls = document.getElementById('controls');
+            const btnCloseSettings = document.getElementById('btn-close-settings');
             let hideTimeout = null;
 
             function showControls() {
                 controls.classList.remove('hidden');
                 clearTimeout(hideTimeout);
                 hideTimeout = setTimeout(function () {
-                    // Don't hide if settings panel is open
                     if (!settingsPanel.classList.contains('open')) {
                         controls.classList.add('hidden');
                     }
                 }, 3000);
             }
+
+            function openSettings() {
+                settingsPanel.classList.add('open');
+                controls.classList.remove('hidden');
+                clearTimeout(hideTimeout);
+            }
+
+            function closeSettings() {
+                settingsPanel.classList.remove('open');
+                showControls();
+            }
+
+            btnSettings.addEventListener('click', function () {
+                if (settingsPanel.classList.contains('open')) {
+                    closeSettings();
+                } else {
+                    openSettings();
+                }
+            });
+
+            btnCloseSettings.addEventListener('click', closeSettings);
+
+            // Close settings on Escape key
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && settingsPanel.classList.contains('open')) {
+                    closeSettings();
+                }
+            });
+
+            // --- Theme buttons ---
+            const themeBtns = document.querySelectorAll('.theme-btn');
+            const sceneTitle = document.getElementById('scene-title');
+
+            themeBtns.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    themeBtns.forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    sceneTitle.textContent = btn.dataset.theme;
+                });
+            });
+
+            // --- Clock type buttons ---
+            const clockTypeBtns = document.querySelectorAll('.clock-type-btn');
+
+            clockTypeBtns.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    clockTypeBtns.forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                });
+            });
+
+            // --- Clock opacity slider ---
+            const opacitySlider = document.getElementById('clock-opacity');
+            const opacityValue = document.getElementById('opacity-value');
+
+            opacitySlider.addEventListener('input', function () {
+                opacityValue.textContent = opacitySlider.value + '%';
+            });
 
             document.addEventListener('mousemove', showControls);
             document.addEventListener('mousedown', showControls);
