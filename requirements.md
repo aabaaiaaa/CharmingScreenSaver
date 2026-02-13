@@ -59,7 +59,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the Spacey theme with: dark navy/black radial gradient background, ~200 star particles that twinkle (oscillating opacity using sine waves at different speeds), 2-3 nebula blobs (large low-opacity radial gradients in purple/blue/pink that drift slowly), and an occasional shooting star effect (a short bright trail that appears every 8-10 seconds).
 
 ### TASK-009: Implement the Colourful visualisation
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-003
 - **Description**: Create the Colourful theme with: slowly rotating rainbow hue gradient background, ~45 soft glowing circle particles in rainbow hues that drift gently (drawn as radial gradients), and 4-5 aurora-like wave layers with hue-shifting fills. All colours should shift gradually over time for a dreamy, kaleidoscopic feel.
