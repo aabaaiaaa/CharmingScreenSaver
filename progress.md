@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 18
-- **Completed**: 14
-- **Remaining**: 4
-- **Last Updated**: 2026-02-13T10:51:42.527Z
+- **Completed**: 15
+- **Remaining**: 3
+- **Last Updated**: 2026-02-13T10:52:53.545Z
 
 ## Iteration Log
 
@@ -119,4 +119,12 @@
 - **Exit Status**: success
 - **Tokens**: 318,834 total (1,984 in, 3,329 out, 37,455 cache-create, 276,066 cache-read)
 - **Cost**: $0.4653
+
+### Iteration 15 - 2026-02-13T10:51:45.060Z
+- **Task Completed**: TASK-011
+- **Summary**: Completed Implement the Stormy visualisation
+- **Duration**: 68s
+- **Exit Status**: success
+- **Tokens**: 390,695 total (10 in, 3,281 out, 40,271 cache-create, 347,133 cache-read)
+- **Cost**: $0.5073
 

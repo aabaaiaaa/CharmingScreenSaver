@@ -1634,6 +1634,142 @@
                 };
             })();
 
+            // --- Stormy theme ---
+            themes.stormy = (function () {
+                // Lightning flash state
+                var lightning = {
+                    active: false,
+                    opacity: 0,
+                    timer: 6 + Math.random() * 10, // first flash in 6-16s
+                    fadeSpeed: 3.0 // how fast the flash fades out
+                };
+
+                // Cloud shape definitions (positioned at the top of the screen)
+                var clouds = [
+                    { cx: 0.12, cy: 0.06, rx: 0.18, ry: 0.08, phase: 0 },
+                    { cx: 0.30, cy: 0.04, rx: 0.22, ry: 0.10, phase: 1.5 },
+                    { cx: 0.52, cy: 0.05, rx: 0.20, ry: 0.09, phase: 3.0 },
+                    { cx: 0.73, cy: 0.04, rx: 0.24, ry: 0.11, phase: 4.5 },
+                    { cx: 0.90, cy: 0.06, rx: 0.16, ry: 0.08, phase: 6.0 }
+                ];
+
+                return {
+                    targetCount: 150,
+
+                    spawn: function (w, h) {
+                        return {
+                            x: Math.random() * w + w * 0.1,
+                            y: -Math.random() * h * 0.3,
+                            speed: 300 + Math.random() * 250,
+                            windDrift: 60 + Math.random() * 40,
+                            length: 12 + Math.random() * 18,
+                            opacity: 0.15 + Math.random() * 0.35
+                        };
+                    },
+
+                    update: function (p, dt, w, h, state) {
+                        // Fall diagonally (mostly down, slightly to the left)
+                        p.y += p.speed * dt;
+                        p.x -= p.windDrift * dt;
+                        // Recycle when below the screen or past left edge
+                        if (p.y > h + 20 || p.x < -20) return false;
+                        return true;
+                    },
+
+                    draw: function (p, ctx) {
+                        // Draw rain drop as a short diagonal line
+                        var angle = Math.atan2(p.speed, -p.windDrift);
+                        var dx = Math.cos(angle) * p.length;
+                        var dy = Math.sin(angle) * p.length;
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p.x + dx, p.y + dy);
+                        ctx.strokeStyle = 'rgba(180, 200, 220, ' + p.opacity + ')';
+                        ctx.lineWidth = 1;
+                        ctx.lineCap = 'round';
+                        ctx.stroke();
+                    },
+
+                    drawBackground: function (ctx, w, h, state) {
+                        // Dark grey/purple gradient background
+                        var grad = ctx.createLinearGradient(0, 0, 0, h);
+                        grad.addColorStop(0, '#1a1525');
+                        grad.addColorStop(0.3, '#1e1830');
+                        grad.addColorStop(0.6, '#22202e');
+                        grad.addColorStop(1, '#181620');
+                        ctx.fillStyle = grad;
+                        ctx.fillRect(0, 0, w, h);
+
+                        // Dark cloud shapes at the top using radial gradients
+                        for (var i = 0; i < clouds.length; i++) {
+                            var c = clouds[i];
+                            var cx = (c.cx + Math.sin(state.timeElapsed * 0.02 + c.phase) * 0.02) * w;
+                            var cy = c.cy * h;
+                            var rx = c.rx * w;
+                            var ry = c.ry * h;
+
+                            // Draw cloud as a large elliptical radial gradient
+                            ctx.save();
+                            ctx.translate(cx, cy);
+                            ctx.scale(1, ry / rx);
+                            var cloudGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+                            cloudGrad.addColorStop(0, 'rgba(25, 20, 35, 0.8)');
+                            cloudGrad.addColorStop(0.4, 'rgba(30, 25, 40, 0.5)');
+                            cloudGrad.addColorStop(0.7, 'rgba(35, 30, 45, 0.25)');
+                            cloudGrad.addColorStop(1, 'rgba(35, 30, 45, 0)');
+                            ctx.beginPath();
+                            ctx.arc(0, 0, rx, 0, Math.PI * 2);
+                            ctx.fillStyle = cloudGrad;
+                            ctx.fill();
+                            ctx.restore();
+
+                            // Second cloud blob slightly offset for volume
+                            ctx.save();
+                            ctx.translate(cx + rx * 0.3, cy + ry * 0.2);
+                            ctx.scale(1, (ry * 0.7) / (rx * 0.6));
+                            var cloudGrad2 = ctx.createRadialGradient(0, 0, 0, 0, 0, rx * 0.6);
+                            cloudGrad2.addColorStop(0, 'rgba(20, 15, 30, 0.7)');
+                            cloudGrad2.addColorStop(0.5, 'rgba(28, 22, 38, 0.35)');
+                            cloudGrad2.addColorStop(1, 'rgba(30, 25, 40, 0)');
+                            ctx.beginPath();
+                            ctx.arc(0, 0, rx * 0.6, 0, Math.PI * 2);
+                            ctx.fillStyle = cloudGrad2;
+                            ctx.fill();
+                            ctx.restore();
+                        }
+                    },
+
+                    drawForeground: function (ctx, w, h, state) {
+                        var dt = 0.016; // approximate frame dt
+
+                        // --- Lightning flash ---
+                        lightning.timer -= dt;
+
+                        if (!lightning.active && lightning.timer <= 0) {
+                            // Trigger a lightning flash
+                            lightning.active = true;
+                            lightning.opacity = 0.35 + Math.random() * 0.2; // brief white overlay
+                            lightning.timer = 6 + Math.random() * 10; // next flash in 6-16s
+                        }
+
+                        if (lightning.active) {
+                            // Draw the screen-wide white overlay
+                            ctx.save();
+                            ctx.fillStyle = 'rgba(220, 225, 255, ' + lightning.opacity + ')';
+                            ctx.fillRect(0, 0, w, h);
+                            ctx.restore();
+
+                            // Fade out
+                            lightning.opacity -= lightning.fadeSpeed * dt;
+                            if (lightning.opacity <= 0) {
+                                lightning.active = false;
+                                lightning.opacity = 0;
+                            }
+                        }
+                    }
+                };
+            })();
+
             // Default/placeholder theme configuration
             function getDefaultThemeConfig() {
                 return {

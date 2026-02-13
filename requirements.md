@@ -71,7 +71,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the Windy theme with: soft sky-blue gradient background, ~35 leaf-like ellipse particles that are swept across the screen from left to right with rotation and vertical wobble, wind gust effects (varying speed over time using sine waves), and flowing wind current lines (thin semi-transparent horizontal curves that show air movement direction).
 
 ### TASK-011: Implement the Stormy visualisation
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-003
 - **Description**: Create the Stormy theme with: dark grey/purple gradient background, ~150 rain drop particles falling diagonally (drawn as short lines), dark cloud shapes at the top (radial gradients), and a lightning flash effect that triggers every 6-16 seconds with a brief screen-wide white overlay that fades out. Keep it atmospheric and hypnotic rather than jarring.
