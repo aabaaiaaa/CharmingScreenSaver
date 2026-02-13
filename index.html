@@ -42,6 +42,19 @@
             z-index: 10;
         }
 
+        /* Digital clock */
+        #digital-clock {
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-weight: 300;
+            font-size: 6vw;
+            color: #fff;
+            letter-spacing: 0.05em;
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+            white-space: nowrap;
+        }
+
         /* Settings panel - slides out from the left */
         #settings-panel {
             position: absolute;
@@ -270,7 +283,9 @@
     <canvas id="canvas"></canvas>
 
     <!-- Clock overlay (digital, analogue, or sun/moon) -->
-    <div id="clock-overlay"></div>
+    <div id="clock-overlay">
+        <div id="digital-clock"></div>
+    </div>
 
     <!-- Controls: settings gear + fullscreen button -->
     <div id="controls">
@@ -420,6 +435,8 @@
                 btn.addEventListener('click', function () {
                     clockTypeBtns.forEach(function (b) { b.classList.remove('active'); });
                     btn.classList.add('active');
+                    state.clockType = btn.dataset.clock;
+                    updateDigitalClock();
                 });
             });
 
@@ -428,8 +445,32 @@
             const opacityValue = document.getElementById('opacity-value');
 
             opacitySlider.addEventListener('input', function () {
-                opacityValue.textContent = opacitySlider.value + '%';
+                var val = parseInt(opacitySlider.value, 10);
+                opacityValue.textContent = val + '%';
+                state.clockOpacity = val / 100;
+                updateDigitalClock();
             });
+
+            // --- Digital clock ---
+            const digitalClockEl = document.getElementById('digital-clock');
+
+            function updateDigitalClock() {
+                if (state.clockType !== 'digital') {
+                    digitalClockEl.style.display = 'none';
+                    return;
+                }
+                digitalClockEl.style.display = '';
+                digitalClockEl.style.opacity = state.clockOpacity;
+
+                var now = new Date();
+                var h = String(now.getHours()).padStart(2, '0');
+                var m = String(now.getMinutes()).padStart(2, '0');
+                var s = String(now.getSeconds()).padStart(2, '0');
+                digitalClockEl.textContent = h + ':' + m + ':' + s;
+            }
+
+            // Initial clock render
+            updateDigitalClock();
 
             document.addEventListener('mousemove', showControls);
             document.addEventListener('mousedown', showControls);
@@ -686,6 +727,9 @@
 
                 // Draw foreground effects
                 config.drawForeground(ctx, w, h, state);
+
+                // Update clock overlay
+                updateDigitalClock();
             }
 
             // --- Handle window resize: re-spawn particles ---

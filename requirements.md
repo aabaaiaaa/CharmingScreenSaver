@@ -83,7 +83,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the Sunny theme with: warm golden radial gradient background, ~30 dust mote particles floating gently upward with subtle drift, a glowing sun positioned in the upper area with a radial glow effect, and 10-12 light rays radiating outward from the sun that slowly rotate and pulse in width/opacity.
 
 ### TASK-013: Implement the digital clock overlay
-- **Status**: pending
+- **Status**: done
 - **Priority**: high
 - **Dependencies**: TASK-001
 - **Description**: Create a digital clock displayed centred on the screen showing HH:MM:SS format with seconds updating in real time. Use a large, light-weight sans-serif font with tabular numerals for stable width. Apply the user-configured opacity from the settings. Hide when clock type is not set to Digital.
