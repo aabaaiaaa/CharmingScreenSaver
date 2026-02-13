@@ -47,7 +47,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the Snowy theme with: soft grey-blue to white gradient background, 80-90 snowflake particles of varying sizes falling gently with slight horizontal drift that changes over time using sine-wave modulation, and a subtle snow accumulation effect at the bottom of the screen (white curved area).
 
 ### TASK-007: Implement the Wavey visualisation
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-003
 - **Description**: Create the Wavey theme with: deep teal/navy gradient background, 10-12 layered flowing sine waves as the main visual element using different frequencies, amplitudes, and speeds to create a mesmerising overlapping effect. Use blues and teals with low opacity fills. Add subtle surface shimmer dots. No particles needed - the waves are the focus.

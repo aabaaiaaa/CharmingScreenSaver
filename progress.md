@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 18
-- **Completed**: 10
-- **Remaining**: 8
-- **Last Updated**: 2026-02-13T10:38:58.518Z
+- **Completed**: 11
+- **Remaining**: 7
+- **Last Updated**: 2026-02-13T10:48:08.705Z
 
 ## Iteration Log
 
@@ -87,4 +87,12 @@
 - **Exit Status**: success
 - **Tokens**: 359,518 total (1,411 in, 2,797 out, 28,471 cache-create, 326,839 cache-read)
 - **Cost**: $0.4183
+
+### Iteration 11 - 2026-02-13T10:47:02.511Z
+- **Task Completed**: TASK-007
+- **Summary**: Completed Implement the Wavey visualisation
+- **Duration**: 66s
+- **Exit Status**: success
+- **Tokens**: 275,309 total (1,553 in, 3,111 out, 28,762 cache-create, 241,883 cache-read)
+- **Cost**: $0.3862
 
