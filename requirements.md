@@ -23,7 +23,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create a slide-out settings panel on the left side with: (1) a 3x3 grid of theme buttons for the 9 visualisations (Watery, Sandy, Snowy, Wavey, Spacey, Colourful, Windy, Stormy, Sunny), (2) clock type selector with options for Digital, Analogue, Sun & Moon, and None, (3) a clock opacity slider (0-100%). Style with a semi-transparent dark backdrop-blur background. Add a gear icon button to toggle the panel and a close button inside. Auto-hide the controls after 3 seconds of mouse inactivity and show them again on mouse movement.
 
 ### TASK-003: Implement the animation loop and particle system framework
-- **Status**: pending
+- **Status**: done
 - **Priority**: high
 - **Dependencies**: TASK-001
 - **Description**: Create the core `requestAnimationFrame` loop with delta-time calculation for frame-rate-independent animation. Build a reusable particle system that each theme can configure: spawn particles with custom properties, update them each frame, draw them, and recycle particles that go off-screen. Maintain a target particle count per theme. Expose a state object tracking current theme, time elapsed, and particle array. Include a function to re-initialise particles when the theme changes.

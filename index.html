@@ -436,6 +436,156 @@
 
             // Start the initial hide timer
             showControls();
+
+            // --- Application state ---
+            const state = {
+                currentTheme: 'watery',
+                timeElapsed: 0,
+                particles: [],
+                clockType: 'digital',
+                clockOpacity: 0.7
+            };
+
+            // --- Theme configurations ---
+            // Each theme defines how its particles behave and how the scene is drawn.
+            // Themes will be registered here by subsequent tasks.
+            const themes = {};
+
+            // Default/placeholder theme configuration
+            function getDefaultThemeConfig() {
+                return {
+                    targetCount: 0,
+                    // Create a single particle with custom properties
+                    spawn: function (w, h) {
+                        return { x: Math.random() * w, y: Math.random() * h, vx: 0, vy: 0 };
+                    },
+                    // Update a particle each frame; return false to recycle it
+                    update: function (p, dt, w, h, state) {
+                        return true;
+                    },
+                    // Draw a single particle
+                    draw: function (p, ctx, state) {},
+                    // Draw the scene background/effects (called before particles)
+                    drawBackground: function (ctx, w, h, state) {
+                        ctx.fillStyle = '#0a0a0f';
+                        ctx.fillRect(0, 0, w, h);
+                    },
+                    // Draw foreground effects (called after particles)
+                    drawForeground: function (ctx, w, h, state) {}
+                };
+            }
+
+            // Get the active theme config, falling back to defaults
+            function getThemeConfig(themeName) {
+                var config = themes[themeName] || {};
+                var defaults = getDefaultThemeConfig();
+                return {
+                    targetCount: config.targetCount !== undefined ? config.targetCount : defaults.targetCount,
+                    spawn: config.spawn || defaults.spawn,
+                    update: config.update || defaults.update,
+                    draw: config.draw || defaults.draw,
+                    drawBackground: config.drawBackground || defaults.drawBackground,
+                    drawForeground: config.drawForeground || defaults.drawForeground
+                };
+            }
+
+            // --- Particle system ---
+
+            // Spawn particles up to the theme's target count
+            function spawnParticles(themeName) {
+                var config = getThemeConfig(themeName);
+                var target = config.targetCount;
+                var w = canvas.width;
+                var h = canvas.height;
+                var particles = [];
+                for (var i = 0; i < target; i++) {
+                    particles.push(config.spawn(w, h));
+                }
+                return particles;
+            }
+
+            // Update all particles; recycle any that are off-screen or flagged
+            function updateParticles(dt) {
+                var config = getThemeConfig(state.currentTheme);
+                var w = canvas.width;
+                var h = canvas.height;
+                var particles = state.particles;
+
+                for (var i = 0; i < particles.length; i++) {
+                    var alive = config.update(particles[i], dt, w, h, state);
+                    if (!alive) {
+                        // Recycle: replace with a fresh particle
+                        particles[i] = config.spawn(w, h);
+                    }
+                }
+
+                // Maintain target count (add if below, trim if above)
+                var target = config.targetCount;
+                while (particles.length < target) {
+                    particles.push(config.spawn(w, h));
+                }
+                if (particles.length > target) {
+                    particles.length = target;
+                }
+            }
+
+            // Draw all particles
+            function drawParticles() {
+                var config = getThemeConfig(state.currentTheme);
+                for (var i = 0; i < state.particles.length; i++) {
+                    config.draw(state.particles[i], ctx, state);
+                }
+            }
+
+            // Re-initialise particles for a new theme
+            function reinitialiseParticles(themeName) {
+                state.currentTheme = themeName;
+                state.timeElapsed = 0;
+                state.particles = spawnParticles(themeName);
+            }
+
+            // --- Wire theme buttons to particle reinitialisation ---
+            themeBtns.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    reinitialiseParticles(btn.dataset.theme);
+                });
+            });
+
+            // --- Animation loop ---
+            var lastTimestamp = 0;
+
+            function animate(timestamp) {
+                requestAnimationFrame(animate);
+
+                // Delta time in seconds, capped at 100ms to avoid jumps
+                var dt = lastTimestamp ? Math.min((timestamp - lastTimestamp) / 1000, 0.1) : 0.016;
+                lastTimestamp = timestamp;
+
+                state.timeElapsed += dt;
+
+                var w = canvas.width;
+                var h = canvas.height;
+                var config = getThemeConfig(state.currentTheme);
+
+                // Draw background
+                config.drawBackground(ctx, w, h, state);
+
+                // Update and draw particles
+                updateParticles(dt);
+                drawParticles();
+
+                // Draw foreground effects
+                config.drawForeground(ctx, w, h, state);
+            }
+
+            // --- Handle window resize: re-spawn particles ---
+            window.addEventListener('resize', function () {
+                reinitialiseParticles(state.currentTheme);
+            });
+
+            // --- Initialise and start ---
+            reinitialiseParticles(state.currentTheme);
+            requestAnimationFrame(animate);
         })();
     </script>
 </body>
