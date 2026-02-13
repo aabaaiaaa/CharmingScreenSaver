@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calm Visualiser</title>
+    <style>
+        /* CSS Reset */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0a0a0f;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #fff;
+            user-select: none;
+        }
+
+        /* Main canvas - fills the entire viewport */
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* Clock overlay - centred on screen */
+        #clock-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Settings panel - slides out from the left */
+        #settings-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100%;
+            background: rgba(10, 10, 20, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 30;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        #settings-panel.open {
+            transform: translateX(0);
+        }
+
+        /* Controls container - settings gear + fullscreen button */
+        #controls {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            display: flex;
+            gap: 8px;
+            z-index: 20;
+            transition: opacity 0.4s ease;
+        }
+
+        #controls.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .control-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Scene title - bottom-right corner */
+        #scene-title {
+            position: absolute;
+            bottom: 20px;
+            right: 24px;
+            font-size: 14px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            text-transform: lowercase;
+            opacity: 0.18;
+            z-index: 10;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main rendering canvas -->
+    <canvas id="canvas"></canvas>
+
+    <!-- Clock overlay (digital, analogue, or sun/moon) -->
+    <div id="clock-overlay"></div>
+
+    <!-- Controls: settings gear + fullscreen button -->
+    <div id="controls">
+        <button class="control-btn" id="btn-settings" title="Settings">
+            &#9881;
+        </button>
+        <button class="control-btn" id="btn-fullscreen" title="Fullscreen (F)">
+            &#x26F6;
+        </button>
+    </div>
+
+    <!-- Settings panel (slides in from left) -->
+    <div id="settings-panel"></div>
+
+    <!-- Scene title in the bottom-right corner -->
+    <div id="scene-title">watery</div>
+
+    <script>
+        (function () {
+            // --- Canvas setup ---
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // --- Fullscreen toggle ---
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                } else {
+                    document.exitFullscreen().catch(() => {});
+                }
+            }
+
+            document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+            // Keyboard shortcut: 'F' for fullscreen
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'f' || e.key === 'F') {
+                    // Don't trigger if the user is typing in an input
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                    toggleFullscreen();
+                }
+            });
+
+            // --- Settings panel toggle ---
+            const settingsPanel = document.getElementById('settings-panel');
+            const btnSettings = document.getElementById('btn-settings');
+
+            btnSettings.addEventListener('click', function () {
+                settingsPanel.classList.toggle('open');
+            });
+
+            // --- Auto-hide controls after inactivity ---
+            const controls = document.getElementById('controls');
+            let hideTimeout = null;
+
+            function showControls() {
+                controls.classList.remove('hidden');
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(function () {
+                    // Don't hide if settings panel is open
+                    if (!settingsPanel.classList.contains('open')) {
+                        controls.classList.add('hidden');
+                    }
+                }, 3000);
+            }
+
+            document.addEventListener('mousemove', showControls);
+            document.addEventListener('mousedown', showControls);
+
+            // Start the initial hide timer
+            showControls();
+        })();
+    </script>
+</body>
+</html>

@@ -11,7 +11,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 ## Tasks
 
 ### TASK-001: Create base HTML page with fullscreen canvas and layout structure
-- **Status**: pending
+- **Status**: done
 - **Priority**: high
 - **Dependencies**: none
 - **Description**: Create `index.html` with a fullscreen canvas element, basic CSS reset, and the overlay structure for clock, settings panel, controls (settings gear + fullscreen button), and scene title element in the bottom-right corner. Wire up fullscreen toggle using the Fullscreen API. Also support pressing 'F' as a keyboard shortcut. Ensure the page fills the viewport with no scrollbars and has a dark background.
