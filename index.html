@@ -1198,6 +1198,185 @@
                 }
             };
 
+            // --- Spacey theme ---
+            themes.spacey = (function () {
+                // Shooting star state
+                var shootingStar = {
+                    active: false,
+                    x: 0, y: 0,
+                    vx: 0, vy: 0,
+                    life: 0,
+                    maxLife: 0.6,
+                    trail: [],
+                    timer: 8 + Math.random() * 2 // first one appears after 8-10s
+                };
+
+                // Nebula blobs - 3 slowly drifting colourful clouds
+                var nebulae = [
+                    { cx: 0.25, cy: 0.35, r: 0.18, hue: 'purple', driftX: 0.008, driftY: 0.005, phaseX: 0, phaseY: 1.2 },
+                    { cx: 0.70, cy: 0.55, r: 0.22, hue: 'blue', driftX: 0.006, driftY: 0.009, phaseX: 2.5, phaseY: 0.4 },
+                    { cx: 0.50, cy: 0.75, r: 0.16, hue: 'pink', driftX: 0.010, driftY: 0.007, phaseX: 4.0, phaseY: 3.1 }
+                ];
+
+                // Nebula colour mappings
+                var nebulaColors = {
+                    purple: { r: 120, g: 40, b: 180 },
+                    blue:   { r: 40, g: 80, b: 200 },
+                    pink:   { r: 180, g: 50, b: 130 }
+                };
+
+                return {
+                    targetCount: 200,
+
+                    spawn: function (w, h) {
+                        return {
+                            x: Math.random() * w,
+                            y: Math.random() * h,
+                            size: 0.5 + Math.random() * 2,
+                            baseOpacity: 0.3 + Math.random() * 0.6,
+                            twinkleSpeed: 0.8 + Math.random() * 2.5,
+                            twinkleOffset: Math.random() * Math.PI * 2
+                        };
+                    },
+
+                    update: function (p, dt, w, h, state) {
+                        // Stars are stationary, just twinkle
+                        return true;
+                    },
+
+                    draw: function (p, ctx, state) {
+                        // Oscillating opacity via sine wave
+                        var twinkle = Math.sin(state.timeElapsed * p.twinkleSpeed + p.twinkleOffset);
+                        var opacity = p.baseOpacity * (0.5 + twinkle * 0.5);
+                        if (opacity < 0.05) return;
+
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(255, 255, 255, ' + opacity + ')';
+                        ctx.fill();
+
+                        // Glow around brighter/larger stars
+                        if (p.size > 1.2 && opacity > 0.4) {
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
+                            ctx.fillStyle = 'rgba(200, 220, 255, ' + (opacity * 0.08) + ')';
+                            ctx.fill();
+                        }
+                    },
+
+                    drawBackground: function (ctx, w, h, state) {
+                        // Dark navy/black radial gradient background
+                        var cx = w * 0.5;
+                        var cy = h * 0.4;
+                        var maxR = Math.max(w, h) * 0.8;
+                        var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+                        grad.addColorStop(0, '#0a0e1a');
+                        grad.addColorStop(0.4, '#060a14');
+                        grad.addColorStop(0.8, '#030610');
+                        grad.addColorStop(1, '#010208');
+                        ctx.fillStyle = grad;
+                        ctx.fillRect(0, 0, w, h);
+
+                        // Draw nebula blobs
+                        var t = state.timeElapsed;
+                        for (var i = 0; i < nebulae.length; i++) {
+                            var n = nebulae[i];
+                            var col = nebulaColors[n.hue];
+                            // Slow drifting position
+                            var nx = (n.cx + Math.sin(t * n.driftX + n.phaseX) * 0.06) * w;
+                            var ny = (n.cy + Math.sin(t * n.driftY + n.phaseY) * 0.05) * h;
+                            var nr = n.r * Math.min(w, h);
+
+                            var nebGrad = ctx.createRadialGradient(nx, ny, 0, nx, ny, nr);
+                            nebGrad.addColorStop(0, 'rgba(' + col.r + ', ' + col.g + ', ' + col.b + ', 0.06)');
+                            nebGrad.addColorStop(0.3, 'rgba(' + col.r + ', ' + col.g + ', ' + col.b + ', 0.04)');
+                            nebGrad.addColorStop(0.6, 'rgba(' + col.r + ', ' + col.g + ', ' + col.b + ', 0.02)');
+                            nebGrad.addColorStop(1, 'rgba(' + col.r + ', ' + col.g + ', ' + col.b + ', 0)');
+                            ctx.beginPath();
+                            ctx.arc(nx, ny, nr, 0, Math.PI * 2);
+                            ctx.fillStyle = nebGrad;
+                            ctx.fill();
+                        }
+                    },
+
+                    drawForeground: function (ctx, w, h, state) {
+                        var t = state.timeElapsed;
+                        var dt = 0.016; // approximate frame dt
+
+                        // --- Shooting star ---
+                        shootingStar.timer -= dt;
+
+                        if (!shootingStar.active && shootingStar.timer <= 0) {
+                            // Launch a new shooting star
+                            shootingStar.active = true;
+                            shootingStar.life = 0;
+                            shootingStar.maxLife = 0.4 + Math.random() * 0.4;
+                            shootingStar.trail = [];
+                            // Start from a random position in the upper portion
+                            shootingStar.x = Math.random() * w;
+                            shootingStar.y = Math.random() * h * 0.4;
+                            // Move diagonally downward
+                            var speed = 600 + Math.random() * 400;
+                            var angle = Math.PI * 0.15 + Math.random() * Math.PI * 0.2;
+                            shootingStar.vx = Math.cos(angle) * speed;
+                            shootingStar.vy = Math.sin(angle) * speed;
+                            shootingStar.timer = 8 + Math.random() * 2; // next one in 8-10s
+                        }
+
+                        if (shootingStar.active) {
+                            shootingStar.life += dt;
+                            shootingStar.x += shootingStar.vx * dt;
+                            shootingStar.y += shootingStar.vy * dt;
+
+                            // Store trail points
+                            shootingStar.trail.push({ x: shootingStar.x, y: shootingStar.y });
+                            // Keep trail length limited
+                            if (shootingStar.trail.length > 20) {
+                                shootingStar.trail.shift();
+                            }
+
+                            // Draw the trail
+                            var progress = shootingStar.life / shootingStar.maxLife;
+                            var fadeOut = 1 - progress;
+
+                            if (shootingStar.trail.length > 1) {
+                                for (var i = 1; i < shootingStar.trail.length; i++) {
+                                    var segAlpha = (i / shootingStar.trail.length) * fadeOut * 0.8;
+                                    var segWidth = (i / shootingStar.trail.length) * 2.5;
+                                    ctx.beginPath();
+                                    ctx.moveTo(shootingStar.trail[i - 1].x, shootingStar.trail[i - 1].y);
+                                    ctx.lineTo(shootingStar.trail[i].x, shootingStar.trail[i].y);
+                                    ctx.strokeStyle = 'rgba(255, 255, 255, ' + segAlpha + ')';
+                                    ctx.lineWidth = segWidth;
+                                    ctx.lineCap = 'round';
+                                    ctx.stroke();
+                                }
+
+                                // Bright head glow
+                                var headX = shootingStar.trail[shootingStar.trail.length - 1].x;
+                                var headY = shootingStar.trail[shootingStar.trail.length - 1].y;
+                                var headGrad = ctx.createRadialGradient(headX, headY, 0, headX, headY, 8);
+                                headGrad.addColorStop(0, 'rgba(255, 255, 255, ' + (fadeOut * 0.9) + ')');
+                                headGrad.addColorStop(0.5, 'rgba(200, 220, 255, ' + (fadeOut * 0.3) + ')');
+                                headGrad.addColorStop(1, 'rgba(150, 180, 255, 0)');
+                                ctx.beginPath();
+                                ctx.arc(headX, headY, 8, 0, Math.PI * 2);
+                                ctx.fillStyle = headGrad;
+                                ctx.fill();
+                            }
+
+                            // End shooting star when life expires or it goes off-screen
+                            if (shootingStar.life >= shootingStar.maxLife ||
+                                shootingStar.x > w + 50 || shootingStar.y > h + 50 ||
+                                shootingStar.x < -50 || shootingStar.y < -50) {
+                                shootingStar.active = false;
+                                shootingStar.trail = [];
+                            }
+                        }
+                    }
+                };
+            })();
+
             // Default/placeholder theme configuration
             function getDefaultThemeConfig() {
                 return {

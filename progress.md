@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Tasks**: 18
-- **Completed**: 11
-- **Remaining**: 7
-- **Last Updated**: 2026-02-13T10:48:08.705Z
+- **Completed**: 12
+- **Remaining**: 6
+- **Last Updated**: 2026-02-13T10:49:27.315Z
 
 ## Iteration Log
 
@@ -95,4 +95,12 @@
 - **Exit Status**: success
 - **Tokens**: 275,309 total (1,553 in, 3,111 out, 28,762 cache-create, 241,883 cache-read)
 - **Cost**: $0.3862
+
+### Iteration 12 - 2026-02-13T10:48:11.703Z
+- **Task Completed**: TASK-008
+- **Summary**: Completed Implement the Spacey visualisation
+- **Duration**: 76s
+- **Exit Status**: success
+- **Tokens**: 354,158 total (10 in, 4,130 out, 36,025 cache-create, 313,993 cache-read)
+- **Cost**: $0.4855
 
