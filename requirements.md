@@ -89,7 +89,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create a digital clock displayed centred on the screen showing HH:MM:SS format with seconds updating in real time. Use a large, light-weight sans-serif font with tabular numerals for stable width. Apply the user-configured opacity from the settings. Hide when clock type is not set to Digital.
 
 ### TASK-014: Implement the analogue clock overlay
-- **Status**: pending
+- **Status**: done
 - **Priority**: high
 - **Dependencies**: TASK-001
 - **Description**: Create an analogue clock rendered on a small overlay canvas (~220x220px) centred on screen. Draw: a subtle circular face with semi-transparent background, 12 hour markers (larger at 12/3/6/9), hour hand, minute hand, and a smooth sweeping second hand. Apply the user-configured opacity. Hide when clock type is not set to Analogue.
