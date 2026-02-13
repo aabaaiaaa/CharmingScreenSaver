@@ -451,6 +451,116 @@
             // Themes will be registered here by subsequent tasks.
             const themes = {};
 
+            // --- Watery theme ---
+            themes.watery = {
+                targetCount: 40,
+
+                spawn: function (w, h) {
+                    var r = 2 + Math.random() * 8;
+                    return {
+                        x: Math.random() * w,
+                        y: h + r + Math.random() * h * 0.3,
+                        r: r,
+                        speed: 12 + Math.random() * 20,
+                        wobbleAmp: 15 + Math.random() * 25,
+                        wobbleSpeed: 0.4 + Math.random() * 0.6,
+                        wobbleOffset: Math.random() * Math.PI * 2,
+                        opacity: 0.08 + Math.random() * 0.18
+                    };
+                },
+
+                update: function (p, dt, w, h, state) {
+                    p.y -= p.speed * dt;
+                    p.x += Math.sin(state.timeElapsed * p.wobbleSpeed + p.wobbleOffset) * p.wobbleAmp * dt;
+                    // Recycle when above the top
+                    if (p.y + p.r < 0) return false;
+                    // Wrap horizontally
+                    if (p.x < -p.r) p.x = w + p.r;
+                    if (p.x > w + p.r) p.x = -p.r;
+                    return true;
+                },
+
+                draw: function (p, ctx) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(180, 220, 255, ' + p.opacity + ')';
+                    ctx.fill();
+                    // Highlight on bubble
+                    ctx.beginPath();
+                    ctx.arc(p.x - p.r * 0.3, p.y - p.r * 0.3, p.r * 0.3, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, ' + (p.opacity * 0.6) + ')';
+                    ctx.fill();
+                },
+
+                drawBackground: function (ctx, w, h, state) {
+                    // Deep ocean blue gradient
+                    var grad = ctx.createLinearGradient(0, 0, 0, h);
+                    grad.addColorStop(0, '#040818');
+                    grad.addColorStop(0.3, '#061530');
+                    grad.addColorStop(0.7, '#0a2a50');
+                    grad.addColorStop(1, '#0c3568');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, w, h);
+
+                    // Subtle light rays from the top
+                    var t = state.timeElapsed;
+                    var rayCount = 6;
+                    ctx.save();
+                    for (var i = 0; i < rayCount; i++) {
+                        var baseX = w * (0.15 + 0.7 * (i / (rayCount - 1)));
+                        var sway = Math.sin(t * 0.15 + i * 1.2) * w * 0.04;
+                        var topX = baseX + sway;
+                        var spread = w * 0.04 + Math.sin(t * 0.2 + i * 0.8) * w * 0.01;
+                        var rayOpacity = 0.02 + Math.sin(t * 0.25 + i * 1.5) * 0.01;
+
+                        var rayGrad = ctx.createLinearGradient(topX, 0, topX, h * 0.75);
+                        rayGrad.addColorStop(0, 'rgba(120, 180, 255, ' + rayOpacity + ')');
+                        rayGrad.addColorStop(0.5, 'rgba(80, 150, 230, ' + (rayOpacity * 0.5) + ')');
+                        rayGrad.addColorStop(1, 'rgba(60, 120, 200, 0)');
+
+                        ctx.beginPath();
+                        ctx.moveTo(topX - spread, 0);
+                        ctx.lineTo(topX + spread, 0);
+                        ctx.lineTo(topX + spread * 3, h * 0.75);
+                        ctx.lineTo(topX - spread * 3, h * 0.75);
+                        ctx.closePath();
+                        ctx.fillStyle = rayGrad;
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                },
+
+                drawForeground: function (ctx, w, h, state) {
+                    // 5 layered wave curves
+                    var t = state.timeElapsed;
+                    var waveConfigs = [
+                        { yBase: 0.55, amp: 18, freq: 0.004, speed: 0.3, color: '20, 60, 140', opacity: 0.12 },
+                        { yBase: 0.60, amp: 22, freq: 0.005, speed: 0.25, color: '30, 80, 160', opacity: 0.10 },
+                        { yBase: 0.68, amp: 15, freq: 0.006, speed: 0.35, color: '20, 70, 150', opacity: 0.10 },
+                        { yBase: 0.75, amp: 20, freq: 0.003, speed: 0.20, color: '15, 50, 130', opacity: 0.08 },
+                        { yBase: 0.82, amp: 12, freq: 0.007, speed: 0.28, color: '10, 40, 120', opacity: 0.08 }
+                    ];
+
+                    for (var i = 0; i < waveConfigs.length; i++) {
+                        var wc = waveConfigs[i];
+                        var baseY = h * wc.yBase;
+
+                        ctx.beginPath();
+                        ctx.moveTo(0, h);
+                        for (var x = 0; x <= w; x += 4) {
+                            var y = baseY
+                                + Math.sin(x * wc.freq + t * wc.speed) * wc.amp
+                                + Math.sin(x * wc.freq * 0.5 + t * wc.speed * 1.3 + 2) * wc.amp * 0.5;
+                            ctx.lineTo(x, y);
+                        }
+                        ctx.lineTo(w, h);
+                        ctx.closePath();
+                        ctx.fillStyle = 'rgba(' + wc.color + ', ' + wc.opacity + ')';
+                        ctx.fill();
+                    }
+                }
+            };
+
             // Default/placeholder theme configuration
             function getDefaultThemeConfig() {
                 return {

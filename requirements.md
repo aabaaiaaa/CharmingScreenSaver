@@ -29,7 +29,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the core `requestAnimationFrame` loop with delta-time calculation for frame-rate-independent animation. Build a reusable particle system that each theme can configure: spawn particles with custom properties, update them each frame, draw them, and recycle particles that go off-screen. Maintain a target particle count per theme. Expose a state object tracking current theme, time elapsed, and particle array. Include a function to re-initialise particles when the theme changes.
 
 ### TASK-004: Implement the Watery visualisation
-- **Status**: pending
+- **Status**: done
 - **Priority**: high
 - **Dependencies**: TASK-003
 - **Description**: Create the Watery theme with: deep ocean blue gradient background, translucent bubble particles that rise slowly with gentle sine-wave wobble, 4-5 layered horizontal wave curves drawn with semi-transparent fills that slowly undulate across the screen, and subtle light ray effects from the top. All movement should feel slow and calming.
