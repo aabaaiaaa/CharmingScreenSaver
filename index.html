@@ -45,15 +45,15 @@
         /* Analogue clock canvas */
         #analogue-clock {
             display: none;
-            width: 220px;
-            height: 220px;
+            width: 400px;
+            height: 400px;
         }
 
         /* Digital clock */
         #digital-clock {
             font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
             font-weight: 300;
-            font-size: 6vw;
+            font-size: 12vw;
             color: #fff;
             letter-spacing: 0.05em;
             font-variant-numeric: tabular-nums;
@@ -263,7 +263,7 @@
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
         }
 
-        #opacity-value {
+        #opacity-value, #cycle-interval-value {
             float: right;
             opacity: 0.8;
             font-variant-numeric: tabular-nums;
@@ -274,9 +274,9 @@
             position: absolute;
             bottom: 20px;
             right: 24px;
-            font-size: 14px;
+            font-size: 4vw;
             font-weight: 300;
-            letter-spacing: 2px;
+            letter-spacing: 4px;
             text-transform: lowercase;
             opacity: 0.18;
             z-index: 10;
@@ -292,15 +292,15 @@
     <!-- Clock overlay (digital, analogue, or sun/moon) -->
     <div id="clock-overlay">
         <div id="digital-clock"></div>
-        <canvas id="analogue-clock" width="440" height="440"></canvas>
+        <canvas id="analogue-clock" width="800" height="800"></canvas>
     </div>
 
     <!-- Controls: settings gear + fullscreen button -->
     <div id="controls">
-        <button class="control-btn" id="btn-settings" title="Settings">
+        <button class="control-btn" id="btn-settings" title="Settings" aria-label="Settings">
             &#9881;
         </button>
-        <button class="control-btn" id="btn-fullscreen" title="Fullscreen (F)">
+        <button class="control-btn" id="btn-fullscreen" title="Fullscreen (F)" aria-label="Toggle fullscreen">
             &#x26F6;
         </button>
     </div>
@@ -309,7 +309,7 @@
     <div id="settings-panel">
         <div class="settings-header">
             <span class="settings-title">Settings</span>
-            <button class="settings-close-btn" id="btn-close-settings" title="Close">&times;</button>
+            <button class="settings-close-btn" id="btn-close-settings" title="Close" aria-label="Close settings">&times;</button>
         </div>
 
         <div class="settings-section">
@@ -324,6 +324,17 @@
                 <button class="theme-btn" data-theme="windy">Windy</button>
                 <button class="theme-btn" data-theme="stormy">Stormy</button>
                 <button class="theme-btn" data-theme="sunny">Sunny</button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-label">Auto Cycle</div>
+            <div class="auto-cycle-controls">
+                <button class="clock-type-btn" id="btn-auto-cycle" aria-label="Toggle auto cycle">Off</button>
+                <div class="auto-cycle-slider-row" id="cycle-interval-row" style="margin-top: 8px; display: none;">
+                    <div class="settings-label">Interval <span id="cycle-interval-value">30s</span></div>
+                    <input type="range" id="cycle-interval" class="opacity-slider" min="10" max="300" value="30">
+                </div>
             </div>
         </div>
 
@@ -348,6 +359,19 @@
 
     <script>
         (function () {
+            // --- Named constants ---
+            const HIDE_TIMEOUT = 3000;
+            const TRANSITION_DURATION = 0.8;
+            const ARC_SEGMENTS = 100;
+            const FALLBACK_DT = 0.016;
+            const MAX_DT = 0.1;
+            const SHOOTING_STAR_INTERVAL_MIN = 8;
+            const SHOOTING_STAR_INTERVAL_RANGE = 2;
+            const LIGHTNING_INTERVAL_MIN = 6;
+            const LIGHTNING_INTERVAL_RANGE = 10;
+            const SHOOTING_STAR_TRAIL_MAX = 20;
+            const THEME_NAMES = ['watery', 'sandy', 'snowy', 'wavey', 'spacey', 'colourful', 'windy', 'stormy', 'sunny'];
+
             // --- Canvas setup ---
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
@@ -357,28 +381,17 @@
                 canvas.height = window.innerHeight;
             }
             resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
 
             // --- Fullscreen toggle ---
             function toggleFullscreen() {
                 if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {});
+                    document.documentElement.requestFullscreen().catch(function () {});
                 } else {
-                    document.exitFullscreen().catch(() => {});
+                    document.exitFullscreen().catch(function () {});
                 }
             }
 
             document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
-
-            // Keyboard shortcut: 'F' for fullscreen
-            document.addEventListener('keydown', function (e) {
-                if (e.key === 'f' || e.key === 'F') {
-                    // Don't trigger if the user is typing in an input or settings panel is open
-                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-                    if (document.getElementById('settings-panel').classList.contains('open')) return;
-                    toggleFullscreen();
-                }
-            });
 
             // --- Settings panel & controls ---
             const controls = document.getElementById('controls');
@@ -387,6 +400,26 @@
             const btnCloseSettings = document.getElementById('btn-close-settings');
             let hideTimeout = null;
 
+            // --- Application state (moved before first usage) ---
+            const state = {
+                currentTheme: 'watery',
+                timeElapsed: 0,
+                particles: [],
+                clockType: 'digital',
+                clockOpacity: 0.7,
+                autoCycle: false,
+                cycleInterval: 30,
+                cycleTimer: 0
+            };
+
+            // Transition state for smooth cross-fade between themes
+            const transition = {
+                active: false,
+                progress: 0,
+                duration: TRANSITION_DURATION,
+                snapshotCanvas: null
+            };
+
             function showControls() {
                 controls.classList.remove('hidden');
                 clearTimeout(hideTimeout);
@@ -394,18 +427,22 @@
                     if (!settingsPanel.classList.contains('open')) {
                         controls.classList.add('hidden');
                     }
-                }, 3000);
+                }, HIDE_TIMEOUT);
             }
 
             function openSettings() {
                 settingsPanel.classList.add('open');
                 controls.classList.remove('hidden');
                 clearTimeout(hideTimeout);
+                // Focus the close button when settings opens
+                btnCloseSettings.focus();
             }
 
             function closeSettings() {
                 settingsPanel.classList.remove('open');
                 showControls();
+                // Return focus to the settings gear button
+                btnSettings.focus();
             }
 
             btnSettings.addEventListener('click', function () {
@@ -418,10 +455,36 @@
 
             btnCloseSettings.addEventListener('click', closeSettings);
 
-            // Close settings on Escape key
+            // --- Consolidated keydown listener (F + Escape) ---
             document.addEventListener('keydown', function (e) {
+                if (e.key === 'f' || e.key === 'F') {
+                    // Don't trigger if the user is typing in an input or settings panel is open
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                    if (settingsPanel.classList.contains('open')) return;
+                    toggleFullscreen();
+                }
                 if (e.key === 'Escape' && settingsPanel.classList.contains('open')) {
                     closeSettings();
+                }
+            });
+
+            // --- Focus trap for settings panel ---
+            settingsPanel.addEventListener('keydown', function (e) {
+                if (e.key !== 'Tab') return;
+                const focusable = settingsPanel.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])');
+                if (focusable.length === 0) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (e.shiftKey) {
+                    if (document.activeElement === first) {
+                        e.preventDefault();
+                        last.focus();
+                    }
+                } else {
+                    if (document.activeElement === last) {
+                        e.preventDefault();
+                        first.focus();
+                    }
                 }
             });
 
@@ -429,20 +492,13 @@
             const themeBtns = document.querySelectorAll('.theme-btn');
             const sceneTitle = document.getElementById('scene-title');
 
-            // Transition state for smooth cross-fade between themes
-            var transition = {
-                active: false,
-                progress: 0,
-                duration: 0.8, // seconds
-                snapshotCanvas: null
-            };
-
             function switchTheme(themeName) {
                 if (themeName === state.currentTheme) return;
+                state.cycleTimer = 0;
 
                 // Capture snapshot of current frame into offscreen canvas for cross-fade
                 try {
-                    var snap = document.createElement('canvas');
+                    const snap = document.createElement('canvas');
                     snap.width = canvas.width;
                     snap.height = canvas.height;
                     snap.getContext('2d').drawImage(canvas, 0, 0);
@@ -455,7 +511,7 @@
 
                 // Update active button highlight
                 themeBtns.forEach(function (b) { b.classList.remove('active'); });
-                var targetBtn = document.querySelector('.theme-btn[data-theme="' + themeName + '"]');
+                const targetBtn = Array.from(themeBtns).find(function (b) { return b.dataset.theme === themeName; });
                 if (targetBtn) targetBtn.classList.add('active');
 
                 // Update scene title
@@ -463,6 +519,8 @@
 
                 // Re-initialise particles for the new theme
                 reinitialiseParticles(themeName);
+
+                savePreferences();
             }
 
             themeBtns.forEach(function (btn) {
@@ -472,15 +530,17 @@
             });
 
             // --- Clock type buttons ---
-            const clockTypeBtns = document.querySelectorAll('.clock-type-btn');
+            const clockTypeBtns = document.querySelectorAll('.clock-type-group .clock-type-btn');
 
             clockTypeBtns.forEach(function (btn) {
                 btn.addEventListener('click', function () {
                     clockTypeBtns.forEach(function (b) { b.classList.remove('active'); });
                     btn.classList.add('active');
                     state.clockType = btn.dataset.clock;
-                    updateDigitalClock();
-                    updateAnalogueClock();
+                    const now = new Date();
+                    updateDigitalClock(now);
+                    updateAnalogueClock(now);
+                    savePreferences();
                 });
             });
 
@@ -489,17 +549,45 @@
             const opacityValue = document.getElementById('opacity-value');
 
             opacitySlider.addEventListener('input', function () {
-                var val = parseInt(opacitySlider.value, 10);
+                const val = parseInt(opacitySlider.value, 10);
                 opacityValue.textContent = val + '%';
                 state.clockOpacity = val / 100;
-                updateDigitalClock();
-                updateAnalogueClock();
+                const now = new Date();
+                updateDigitalClock(now);
+                updateAnalogueClock(now);
+                savePreferences();
+            });
+
+            // --- Auto-cycle controls ---
+            const btnAutoCycle = document.getElementById('btn-auto-cycle');
+            const cycleIntervalRow = document.getElementById('cycle-interval-row');
+            const cycleIntervalSlider = document.getElementById('cycle-interval');
+            const cycleIntervalValue = document.getElementById('cycle-interval-value');
+
+            btnAutoCycle.addEventListener('click', function () {
+                state.autoCycle = !state.autoCycle;
+                state.cycleTimer = 0;
+                btnAutoCycle.textContent = state.autoCycle ? 'On' : 'Off';
+                if (state.autoCycle) {
+                    btnAutoCycle.classList.add('active');
+                } else {
+                    btnAutoCycle.classList.remove('active');
+                }
+                cycleIntervalRow.style.display = state.autoCycle ? '' : 'none';
+                savePreferences();
+            });
+
+            cycleIntervalSlider.addEventListener('input', function () {
+                state.cycleInterval = parseInt(cycleIntervalSlider.value, 10);
+                cycleIntervalValue.textContent = state.cycleInterval + 's';
+                state.cycleTimer = 0;
+                savePreferences();
             });
 
             // --- Digital clock ---
             const digitalClockEl = document.getElementById('digital-clock');
 
-            function updateDigitalClock() {
+            function updateDigitalClock(now) {
                 if (state.clockType !== 'digital') {
                     digitalClockEl.style.display = 'none';
                     return;
@@ -507,22 +595,22 @@
                 digitalClockEl.style.display = '';
                 digitalClockEl.style.opacity = state.clockOpacity;
 
-                var now = new Date();
-                var h = String(now.getHours()).padStart(2, '0');
-                var m = String(now.getMinutes()).padStart(2, '0');
-                var s = String(now.getSeconds()).padStart(2, '0');
+                now = now || new Date();
+                const h = String(now.getHours()).padStart(2, '0');
+                const m = String(now.getMinutes()).padStart(2, '0');
+                const s = String(now.getSeconds()).padStart(2, '0');
                 digitalClockEl.textContent = h + ':' + m + ':' + s;
             }
 
             // --- Analogue clock ---
             const analogueClockEl = document.getElementById('analogue-clock');
             const analogueCtx = analogueClockEl.getContext('2d');
-            // Canvas is 440x440 (2x for sharpness), displayed at 220x220 via CSS
-            const ACLOCK_SIZE = 440;
+            // Canvas is 800x800 (2x for sharpness), displayed at 400x400 via CSS
+            const ACLOCK_SIZE = 800;
             const ACLOCK_CENTER = ACLOCK_SIZE / 2;
             const ACLOCK_RADIUS = ACLOCK_SIZE / 2 - 20;
 
-            function updateAnalogueClock() {
+            function updateAnalogueClock(now) {
                 if (state.clockType !== 'analogue') {
                     analogueClockEl.style.display = 'none';
                     return;
@@ -530,10 +618,10 @@
                 analogueClockEl.style.display = 'block';
                 analogueClockEl.style.opacity = state.clockOpacity;
 
-                var c = analogueCtx;
-                var cx = ACLOCK_CENTER;
-                var cy = ACLOCK_CENTER;
-                var r = ACLOCK_RADIUS;
+                const c = analogueCtx;
+                const cx = ACLOCK_CENTER;
+                const cy = ACLOCK_CENTER;
+                const r = ACLOCK_RADIUS;
 
                 // Clear
                 c.clearRect(0, 0, ACLOCK_SIZE, ACLOCK_SIZE);
@@ -548,15 +636,15 @@
                 c.stroke();
 
                 // Hour markers
-                for (var i = 0; i < 12; i++) {
-                    var angle = (i * Math.PI / 6) - Math.PI / 2;
-                    var isMajor = (i % 3 === 0);
-                    var markerLen = isMajor ? 22 : 12;
-                    var markerWidth = isMajor ? 3 : 1.5;
-                    var outerX = cx + Math.cos(angle) * (r - 8);
-                    var outerY = cy + Math.sin(angle) * (r - 8);
-                    var innerX = cx + Math.cos(angle) * (r - 8 - markerLen);
-                    var innerY = cy + Math.sin(angle) * (r - 8 - markerLen);
+                for (let i = 0; i < 12; i++) {
+                    const angle = (i * Math.PI / 6) - Math.PI / 2;
+                    const isMajor = (i % 3 === 0);
+                    const markerLen = isMajor ? 22 : 12;
+                    const markerWidth = isMajor ? 3 : 1.5;
+                    const outerX = cx + Math.cos(angle) * (r - 8);
+                    const outerY = cy + Math.sin(angle) * (r - 8);
+                    const innerX = cx + Math.cos(angle) * (r - 8 - markerLen);
+                    const innerY = cy + Math.sin(angle) * (r - 8 - markerLen);
 
                     c.beginPath();
                     c.moveTo(outerX, outerY);
@@ -568,16 +656,16 @@
                 }
 
                 // Current time
-                var now = new Date();
-                var hours = now.getHours() % 12;
-                var minutes = now.getMinutes();
-                var seconds = now.getSeconds();
-                var millis = now.getMilliseconds();
+                now = now || new Date();
+                const hours = now.getHours() % 12;
+                const minutes = now.getMinutes();
+                const seconds = now.getSeconds();
+                const millis = now.getMilliseconds();
 
                 // Smooth second angle (includes milliseconds for sweep)
-                var secAngle = ((seconds + millis / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
-                var minAngle = ((minutes + seconds / 60) / 60) * Math.PI * 2 - Math.PI / 2;
-                var hrAngle = ((hours + minutes / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+                const secAngle = ((seconds + millis / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
+                const minAngle = ((minutes + seconds / 60) / 60) * Math.PI * 2 - Math.PI / 2;
+                const hrAngle = ((hours + minutes / 60) / 12) * Math.PI * 2 - Math.PI / 2;
 
                 // Hour hand
                 c.beginPath();
@@ -614,23 +702,23 @@
             }
 
             // --- Sun & Moon sky tracker clock ---
-            function drawSunMoonClock(ctx, w, h) {
+            function drawSunMoonClock(ctx, w, h, now) {
                 if (state.clockType !== 'sunmoon') return;
 
-                var opacity = state.clockOpacity;
+                const opacity = state.clockOpacity;
                 if (opacity <= 0) return;
 
-                var now = new Date();
-                var hours = now.getHours();
-                var minutes = now.getMinutes();
-                var seconds = now.getSeconds();
-                var totalMinutes = hours * 60 + minutes + seconds / 60;
+                now = now || new Date();
+                const hours = now.getHours();
+                const minutes = now.getMinutes();
+                const seconds = now.getSeconds();
+                const totalMinutes = hours * 60 + minutes + seconds / 60;
 
                 // Determine if daytime (6am-6pm) or nighttime (6pm-6am)
-                var isDaytime = (hours >= 6 && hours < 18);
+                const isDaytime = (hours >= 6 && hours < 18);
 
                 // Calculate progress (0 to 1) within the current period
-                var progress;
+                let progress;
                 if (isDaytime) {
                     // 6:00 = 360 min, 18:00 = 1080 min; range = 720 min
                     progress = (totalMinutes - 360) / 720;
@@ -645,17 +733,17 @@
                 progress = Math.max(0, Math.min(1, progress));
 
                 // Arc geometry
-                var margin = w * 0.08;
-                var arcLeft = margin;
-                var arcRight = w - margin;
-                var arcWidth = arcRight - arcLeft;
-                var horizonY = h * 0.72;
-                var peakHeight = h * 0.38; // how high the arc peaks above horizon
+                const margin = w * 0.08;
+                const arcLeft = margin;
+                const arcRight = w - margin;
+                const arcWidth = arcRight - arcLeft;
+                const horizonY = h * 0.72;
+                const peakHeight = h * 0.38; // how high the arc peaks above horizon
 
                 // Position on the arc: angle goes from PI to 0 (left to right)
-                var angle = Math.PI * (1 - progress);
-                var celestialX = arcLeft + arcWidth * progress;
-                var celestialY = horizonY - Math.sin(angle) * peakHeight;
+                const angle = Math.PI * (1 - progress);
+                const celestialX = arcLeft + arcWidth * progress;
+                const celestialY = horizonY - Math.sin(angle) * peakHeight;
 
                 ctx.save();
                 ctx.globalAlpha = opacity;
@@ -665,11 +753,11 @@
                 ctx.setLineDash([4, 8]);
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
                 ctx.lineWidth = 1;
-                for (var i = 0; i <= 100; i++) {
-                    var t = i / 100;
-                    var a = Math.PI * (1 - t);
-                    var px = arcLeft + arcWidth * t;
-                    var py = horizonY - Math.sin(a) * peakHeight;
+                for (let i = 0; i <= ARC_SEGMENTS; i++) {
+                    const t = i / ARC_SEGMENTS;
+                    const a = Math.PI * (1 - t);
+                    const px = arcLeft + arcWidth * t;
+                    const py = horizonY - Math.sin(a) * peakHeight;
                     if (i === 0) ctx.moveTo(px, py);
                     else ctx.lineTo(px, py);
                 }
@@ -688,8 +776,8 @@
                 ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'top';
-                var labelY = horizonY + 10;
-                var labelAlpha = 0.35;
+                const labelY = horizonY + 10;
+                const labelAlpha = 0.35;
 
                 if (isDaytime) {
                     ctx.fillStyle = 'rgba(255, 255, 255, ' + labelAlpha + ')';
@@ -706,10 +794,10 @@
                 // --- Draw the sun or moon ---
                 if (isDaytime) {
                     // Sun: warm glow + rays
-                    var sunRadius = Math.min(w, h) * 0.028;
+                    const sunRadius = Math.min(w, h) * 0.028;
 
                     // Outer glow
-                    var glowGrad = ctx.createRadialGradient(celestialX, celestialY, sunRadius * 0.5, celestialX, celestialY, sunRadius * 5);
+                    const glowGrad = ctx.createRadialGradient(celestialX, celestialY, sunRadius * 0.5, celestialX, celestialY, sunRadius * 5);
                     glowGrad.addColorStop(0, 'rgba(255, 200, 50, 0.25)');
                     glowGrad.addColorStop(0.3, 'rgba(255, 180, 40, 0.1)');
                     glowGrad.addColorStop(1, 'rgba(255, 160, 30, 0)');
@@ -719,12 +807,12 @@
                     ctx.fill();
 
                     // Subtle rays
-                    var rayCount = 12;
-                    var t = state.timeElapsed;
-                    for (var i = 0; i < rayCount; i++) {
-                        var rayAngle = (i / rayCount) * Math.PI * 2 + t * 0.08;
-                        var rayInner = sunRadius * 1.3;
-                        var rayOuter = sunRadius * 2.2 + Math.sin(t * 0.5 + i * 1.1) * sunRadius * 0.4;
+                    const rayCount = 12;
+                    const t = state.timeElapsed;
+                    for (let i = 0; i < rayCount; i++) {
+                        const rayAngle = (i / rayCount) * Math.PI * 2 + t * 0.08;
+                        const rayInner = sunRadius * 1.3;
+                        const rayOuter = sunRadius * 2.2 + Math.sin(t * 0.5 + i * 1.1) * sunRadius * 0.4;
                         ctx.beginPath();
                         ctx.moveTo(
                             celestialX + Math.cos(rayAngle) * rayInner,
@@ -741,7 +829,7 @@
                     }
 
                     // Sun body
-                    var sunGrad = ctx.createRadialGradient(celestialX, celestialY, 0, celestialX, celestialY, sunRadius);
+                    const sunGrad = ctx.createRadialGradient(celestialX, celestialY, 0, celestialX, celestialY, sunRadius);
                     sunGrad.addColorStop(0, 'rgba(255, 240, 180, 1)');
                     sunGrad.addColorStop(0.6, 'rgba(255, 200, 60, 1)');
                     sunGrad.addColorStop(1, 'rgba(255, 170, 30, 0.9)');
@@ -751,10 +839,10 @@
                     ctx.fill();
                 } else {
                     // Moon: cool glow + crescent shadow
-                    var moonRadius = Math.min(w, h) * 0.026;
+                    const moonRadius = Math.min(w, h) * 0.026;
 
                     // Cool glow
-                    var moonGlowGrad = ctx.createRadialGradient(celestialX, celestialY, moonRadius * 0.5, celestialX, celestialY, moonRadius * 4.5);
+                    const moonGlowGrad = ctx.createRadialGradient(celestialX, celestialY, moonRadius * 0.5, celestialX, celestialY, moonRadius * 4.5);
                     moonGlowGrad.addColorStop(0, 'rgba(180, 200, 255, 0.2)');
                     moonGlowGrad.addColorStop(0.3, 'rgba(150, 180, 240, 0.08)');
                     moonGlowGrad.addColorStop(1, 'rgba(120, 150, 220, 0)');
@@ -771,7 +859,7 @@
                     ctx.clip();
 
                     // Fill the full moon body
-                    var moonBodyGrad = ctx.createRadialGradient(celestialX, celestialY, 0, celestialX, celestialY, moonRadius);
+                    const moonBodyGrad = ctx.createRadialGradient(celestialX, celestialY, 0, celestialX, celestialY, moonRadius);
                     moonBodyGrad.addColorStop(0, 'rgba(230, 235, 255, 1)');
                     moonBodyGrad.addColorStop(0.7, 'rgba(210, 220, 245, 1)');
                     moonBodyGrad.addColorStop(1, 'rgba(190, 200, 235, 0.9)');
@@ -792,8 +880,9 @@
             }
 
             // Initial clock render
-            updateDigitalClock();
-            updateAnalogueClock();
+            const initDate = new Date();
+            updateDigitalClock(initDate);
+            updateAnalogueClock(initDate);
 
             document.addEventListener('mousemove', showControls);
             document.addEventListener('mousedown', showControls);
@@ -802,26 +891,25 @@
             // Start the initial hide timer
             showControls();
 
-            // --- Application state ---
-            const state = {
-                currentTheme: 'watery',
-                timeElapsed: 0,
-                particles: [],
-                clockType: 'digital',
-                clockOpacity: 0.7
-            };
-
             // --- Theme configurations ---
             // Each theme defines how its particles behave and how the scene is drawn.
-            // Themes will be registered here by subsequent tasks.
             const themes = {};
 
             // --- Watery theme ---
+            // Hoisted wave configs (avoid per-frame allocation)
+            const wateryWaveConfigs = [
+                { yBase: 0.55, amp: 18, freq: 0.004, speed: 0.3, color: '20, 60, 140', opacity: 0.12 },
+                { yBase: 0.60, amp: 22, freq: 0.005, speed: 0.25, color: '30, 80, 160', opacity: 0.10 },
+                { yBase: 0.68, amp: 15, freq: 0.006, speed: 0.35, color: '20, 70, 150', opacity: 0.10 },
+                { yBase: 0.75, amp: 20, freq: 0.003, speed: 0.20, color: '15, 50, 130', opacity: 0.08 },
+                { yBase: 0.82, amp: 12, freq: 0.007, speed: 0.28, color: '10, 40, 120', opacity: 0.08 }
+            ];
+
             themes.watery = {
                 targetCount: 40,
 
                 spawn: function (w, h) {
-                    var r = 2 + Math.random() * 8;
+                    const r = 2 + Math.random() * 8;
                     return {
                         x: Math.random() * w,
                         y: h + r + Math.random() * h * 0.3,
@@ -859,7 +947,7 @@
 
                 drawBackground: function (ctx, w, h, state) {
                     // Deep ocean blue gradient
-                    var grad = ctx.createLinearGradient(0, 0, 0, h);
+                    const grad = ctx.createLinearGradient(0, 0, 0, h);
                     grad.addColorStop(0, '#040818');
                     grad.addColorStop(0.3, '#061530');
                     grad.addColorStop(0.7, '#0a2a50');
@@ -868,17 +956,17 @@
                     ctx.fillRect(0, 0, w, h);
 
                     // Subtle light rays from the top
-                    var t = state.timeElapsed;
-                    var rayCount = 6;
+                    const t = state.timeElapsed;
+                    const rayCount = 6;
                     ctx.save();
-                    for (var i = 0; i < rayCount; i++) {
-                        var baseX = w * (0.15 + 0.7 * (i / (rayCount - 1)));
-                        var sway = Math.sin(t * 0.15 + i * 1.2) * w * 0.04;
-                        var topX = baseX + sway;
-                        var spread = w * 0.04 + Math.sin(t * 0.2 + i * 0.8) * w * 0.01;
-                        var rayOpacity = 0.02 + Math.sin(t * 0.25 + i * 1.5) * 0.01;
+                    for (let i = 0; i < rayCount; i++) {
+                        const baseX = w * (0.15 + 0.7 * (i / (rayCount - 1)));
+                        const sway = Math.sin(t * 0.15 + i * 1.2) * w * 0.04;
+                        const topX = baseX + sway;
+                        const spread = w * 0.04 + Math.sin(t * 0.2 + i * 0.8) * w * 0.01;
+                        const rayOpacity = 0.02 + Math.sin(t * 0.25 + i * 1.5) * 0.01;
 
-                        var rayGrad = ctx.createLinearGradient(topX, 0, topX, h * 0.75);
+                        const rayGrad = ctx.createLinearGradient(topX, 0, topX, h * 0.75);
                         rayGrad.addColorStop(0, 'rgba(120, 180, 255, ' + rayOpacity + ')');
                         rayGrad.addColorStop(0.5, 'rgba(80, 150, 230, ' + (rayOpacity * 0.5) + ')');
                         rayGrad.addColorStop(1, 'rgba(60, 120, 200, 0)');
@@ -897,23 +985,16 @@
 
                 drawForeground: function (ctx, w, h, state) {
                     // 5 layered wave curves
-                    var t = state.timeElapsed;
-                    var waveConfigs = [
-                        { yBase: 0.55, amp: 18, freq: 0.004, speed: 0.3, color: '20, 60, 140', opacity: 0.12 },
-                        { yBase: 0.60, amp: 22, freq: 0.005, speed: 0.25, color: '30, 80, 160', opacity: 0.10 },
-                        { yBase: 0.68, amp: 15, freq: 0.006, speed: 0.35, color: '20, 70, 150', opacity: 0.10 },
-                        { yBase: 0.75, amp: 20, freq: 0.003, speed: 0.20, color: '15, 50, 130', opacity: 0.08 },
-                        { yBase: 0.82, amp: 12, freq: 0.007, speed: 0.28, color: '10, 40, 120', opacity: 0.08 }
-                    ];
+                    const t = state.timeElapsed;
 
-                    for (var i = 0; i < waveConfigs.length; i++) {
-                        var wc = waveConfigs[i];
-                        var baseY = h * wc.yBase;
+                    for (let i = 0; i < wateryWaveConfigs.length; i++) {
+                        const wc = wateryWaveConfigs[i];
+                        const baseY = h * wc.yBase;
 
                         ctx.beginPath();
                         ctx.moveTo(0, h);
-                        for (var x = 0; x <= w; x += 4) {
-                            var y = baseY
+                        for (let x = 0; x <= w; x += 4) {
+                            const y = baseY
                                 + Math.sin(x * wc.freq + t * wc.speed) * wc.amp
                                 + Math.sin(x * wc.freq * 0.5 + t * wc.speed * 1.3 + 2) * wc.amp * 0.5;
                             ctx.lineTo(x, y);
@@ -927,6 +1008,14 @@
             };
 
             // --- Sandy theme ---
+            // Hoisted dune configs (avoid per-frame allocation)
+            const sandyDuneConfigs = [
+                { yBase: 0.62, amp: 35, freq: 0.0025, shiftSpeed: 0.06, color: '160, 110, 40', opacity: 0.18 },
+                { yBase: 0.70, amp: 45, freq: 0.0018, shiftSpeed: 0.04, color: '175, 125, 50', opacity: 0.22 },
+                { yBase: 0.78, amp: 30, freq: 0.0030, shiftSpeed: 0.08, color: '190, 140, 60', opacity: 0.25 },
+                { yBase: 0.86, amp: 25, freq: 0.0022, shiftSpeed: 0.05, color: '200, 155, 70', opacity: 0.30 }
+            ];
+
             themes.sandy = {
                 targetCount: 80,
 
@@ -963,7 +1052,7 @@
 
                 drawBackground: function (ctx, w, h, state) {
                     // Warm amber/tan/gold gradient
-                    var grad = ctx.createLinearGradient(0, 0, 0, h);
+                    const grad = ctx.createLinearGradient(0, 0, 0, h);
                     grad.addColorStop(0, '#d4a44a');
                     grad.addColorStop(0.25, '#c89038');
                     grad.addColorStop(0.5, '#b87d2e');
@@ -973,15 +1062,15 @@
                     ctx.fillRect(0, 0, w, h);
 
                     // Subtle heat shimmer effect - thin horizontal wavy lines
-                    var t = state.timeElapsed;
+                    const t = state.timeElapsed;
                     ctx.save();
                     ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
                     ctx.lineWidth = 1;
-                    var shimmerSpacing = 12;
-                    for (var row = 0; row < h; row += shimmerSpacing) {
+                    const shimmerSpacing = 24;
+                    for (let row = 0; row < h; row += shimmerSpacing) {
                         ctx.beginPath();
-                        for (var x = 0; x <= w; x += 8) {
-                            var yOff = Math.sin(x * 0.015 + t * 0.8 + row * 0.1) * 2
+                        for (let x = 0; x <= w; x += 16) {
+                            const yOff = Math.sin(x * 0.015 + t * 0.8 + row * 0.1) * 2
                                      + Math.sin(x * 0.008 + t * 1.2 + row * 0.05) * 1.5;
                             if (x === 0) ctx.moveTo(x, row + yOff);
                             else ctx.lineTo(x, row + yOff);
@@ -993,22 +1082,16 @@
 
                 drawForeground: function (ctx, w, h, state) {
                     // 4 smooth dune curves at the lower portion of the screen
-                    var t = state.timeElapsed;
-                    var duneConfigs = [
-                        { yBase: 0.62, amp: 35, freq: 0.0025, shiftSpeed: 0.06, color: '160, 110, 40', opacity: 0.18 },
-                        { yBase: 0.70, amp: 45, freq: 0.0018, shiftSpeed: 0.04, color: '175, 125, 50', opacity: 0.22 },
-                        { yBase: 0.78, amp: 30, freq: 0.0030, shiftSpeed: 0.08, color: '190, 140, 60', opacity: 0.25 },
-                        { yBase: 0.86, amp: 25, freq: 0.0022, shiftSpeed: 0.05, color: '200, 155, 70', opacity: 0.30 }
-                    ];
+                    const t = state.timeElapsed;
 
-                    for (var i = 0; i < duneConfigs.length; i++) {
-                        var dc = duneConfigs[i];
-                        var baseY = h * dc.yBase;
+                    for (let i = 0; i < sandyDuneConfigs.length; i++) {
+                        const dc = sandyDuneConfigs[i];
+                        const baseY = h * dc.yBase;
 
                         ctx.beginPath();
                         ctx.moveTo(0, h);
-                        for (var x = 0; x <= w; x += 4) {
-                            var y = baseY
+                        for (let x = 0; x <= w; x += 4) {
+                            const y = baseY
                                 + Math.sin(x * dc.freq + t * dc.shiftSpeed) * dc.amp
                                 + Math.sin(x * dc.freq * 1.6 + t * dc.shiftSpeed * 0.7 + 1.5) * dc.amp * 0.4
                                 + Math.sin(x * dc.freq * 0.5 + t * dc.shiftSpeed * 1.3 + 3) * dc.amp * 0.25;
@@ -1023,11 +1106,18 @@
             };
 
             // --- Snowy theme ---
+            // Hoisted snow layers (avoid per-frame allocation)
+            const snowyLayers = [
+                { yOffset: 0, amp: 18, freq: 0.003, speed: 0.02, opacity: 0.5 },
+                { yOffset: -8, amp: 12, freq: 0.005, speed: 0.03, opacity: 0.7 },
+                { yOffset: -16, amp: 8, freq: 0.004, speed: 0.015, opacity: 0.9 }
+            ];
+
             themes.snowy = {
                 targetCount: 85,
 
                 spawn: function (w, h) {
-                    var size = 1 + Math.random() * 5;
+                    const size = 1 + Math.random() * 5;
                     return {
                         x: Math.random() * w,
                         y: -size - Math.random() * h * 0.3,
@@ -1076,7 +1166,7 @@
 
                 drawBackground: function (ctx, w, h, state) {
                     // Soft grey-blue to white gradient
-                    var grad = ctx.createLinearGradient(0, 0, 0, h);
+                    const grad = ctx.createLinearGradient(0, 0, 0, h);
                     grad.addColorStop(0, '#8a9bb5');
                     grad.addColorStop(0.3, '#a0b0c8');
                     grad.addColorStop(0.6, '#bcc8d8');
@@ -1088,23 +1178,17 @@
 
                 drawForeground: function (ctx, w, h, state) {
                     // Snow accumulation effect at the bottom - white curved area
-                    var t = state.timeElapsed;
-                    var accumH = h * 0.12; // height of the accumulation zone
-                    var baseY = h - accumH;
+                    const t = state.timeElapsed;
+                    const accumH = h * 0.12; // height of the accumulation zone
+                    const baseY = h - accumH;
 
                     // Draw 3 layered snow mound curves for a natural look
-                    var layers = [
-                        { yOffset: 0, amp: 18, freq: 0.003, speed: 0.02, opacity: 0.5 },
-                        { yOffset: -8, amp: 12, freq: 0.005, speed: 0.03, opacity: 0.7 },
-                        { yOffset: -16, amp: 8, freq: 0.004, speed: 0.015, opacity: 0.9 }
-                    ];
-
-                    for (var i = 0; i < layers.length; i++) {
-                        var layer = layers[i];
+                    for (let i = 0; i < snowyLayers.length; i++) {
+                        const layer = snowyLayers[i];
                         ctx.beginPath();
                         ctx.moveTo(0, h);
-                        for (var x = 0; x <= w; x += 4) {
-                            var y = baseY + layer.yOffset
+                        for (let x = 0; x <= w; x += 4) {
+                            const y = baseY + layer.yOffset
                                 + Math.sin(x * layer.freq + t * layer.speed) * layer.amp
                                 + Math.sin(x * layer.freq * 2.2 + t * layer.speed * 0.7 + 1.8) * layer.amp * 0.4
                                 + Math.cos(x * layer.freq * 0.6 + t * layer.speed * 1.4 + 3.2) * layer.amp * 0.25;
@@ -1119,6 +1203,22 @@
             };
 
             // --- Wavey theme ---
+            // Hoisted wave configs (avoid per-frame allocation)
+            const waveyWaveConfigs = [
+                { yBase: 0.15, amp: 30, freq: 0.0030, speed: 0.20, freq2: 0.0018, speed2: 0.12, r: 20, g: 80, b: 160, opacity: 0.06 },
+                { yBase: 0.22, amp: 25, freq: 0.0045, speed: 0.28, freq2: 0.0025, speed2: 0.18, r: 30, g: 120, b: 180, opacity: 0.05 },
+                { yBase: 0.28, amp: 35, freq: 0.0020, speed: 0.15, freq2: 0.0035, speed2: 0.22, r: 15, g: 100, b: 170, opacity: 0.06 },
+                { yBase: 0.35, amp: 22, freq: 0.0055, speed: 0.32, freq2: 0.0012, speed2: 0.10, r: 40, g: 140, b: 190, opacity: 0.05 },
+                { yBase: 0.42, amp: 28, freq: 0.0035, speed: 0.22, freq2: 0.0040, speed2: 0.30, r: 20, g: 110, b: 175, opacity: 0.06 },
+                { yBase: 0.48, amp: 20, freq: 0.0060, speed: 0.35, freq2: 0.0020, speed2: 0.14, r: 50, g: 150, b: 195, opacity: 0.05 },
+                { yBase: 0.55, amp: 32, freq: 0.0025, speed: 0.18, freq2: 0.0045, speed2: 0.26, r: 25, g: 90, b: 165, opacity: 0.06 },
+                { yBase: 0.62, amp: 26, freq: 0.0040, speed: 0.25, freq2: 0.0015, speed2: 0.20, r: 35, g: 130, b: 185, opacity: 0.05 },
+                { yBase: 0.68, amp: 18, freq: 0.0070, speed: 0.38, freq2: 0.0030, speed2: 0.16, r: 45, g: 155, b: 200, opacity: 0.05 },
+                { yBase: 0.75, amp: 30, freq: 0.0028, speed: 0.16, freq2: 0.0050, speed2: 0.28, r: 18, g: 85, b: 155, opacity: 0.06 },
+                { yBase: 0.82, amp: 24, freq: 0.0050, speed: 0.30, freq2: 0.0022, speed2: 0.12, r: 30, g: 115, b: 178, opacity: 0.05 },
+                { yBase: 0.88, amp: 15, freq: 0.0038, speed: 0.24, freq2: 0.0060, speed2: 0.34, r: 55, g: 160, b: 205, opacity: 0.04 }
+            ];
+
             themes.wavey = {
                 targetCount: 0, // No particles - waves are the focus
 
@@ -1134,7 +1234,7 @@
 
                 drawBackground: function (ctx, w, h, state) {
                     // Deep teal/navy gradient background
-                    var grad = ctx.createLinearGradient(0, 0, 0, h);
+                    const grad = ctx.createLinearGradient(0, 0, 0, h);
                     grad.addColorStop(0, '#040d1a');
                     grad.addColorStop(0.3, '#061a2e');
                     grad.addColorStop(0.6, '#0a2838');
@@ -1144,32 +1244,17 @@
                 },
 
                 drawForeground: function (ctx, w, h, state) {
-                    var t = state.timeElapsed;
+                    const t = state.timeElapsed;
 
                     // 12 layered flowing sine waves
-                    var waveConfigs = [
-                        { yBase: 0.15, amp: 30, freq: 0.0030, speed: 0.20, freq2: 0.0018, speed2: 0.12, r: 20, g: 80, b: 160, opacity: 0.06 },
-                        { yBase: 0.22, amp: 25, freq: 0.0045, speed: 0.28, freq2: 0.0025, speed2: 0.18, r: 30, g: 120, b: 180, opacity: 0.05 },
-                        { yBase: 0.28, amp: 35, freq: 0.0020, speed: 0.15, freq2: 0.0035, speed2: 0.22, r: 15, g: 100, b: 170, opacity: 0.06 },
-                        { yBase: 0.35, amp: 22, freq: 0.0055, speed: 0.32, freq2: 0.0012, speed2: 0.10, r: 40, g: 140, b: 190, opacity: 0.05 },
-                        { yBase: 0.42, amp: 28, freq: 0.0035, speed: 0.22, freq2: 0.0040, speed2: 0.30, r: 20, g: 110, b: 175, opacity: 0.06 },
-                        { yBase: 0.48, amp: 20, freq: 0.0060, speed: 0.35, freq2: 0.0020, speed2: 0.14, r: 50, g: 150, b: 195, opacity: 0.05 },
-                        { yBase: 0.55, amp: 32, freq: 0.0025, speed: 0.18, freq2: 0.0045, speed2: 0.26, r: 25, g: 90, b: 165, opacity: 0.06 },
-                        { yBase: 0.62, amp: 26, freq: 0.0040, speed: 0.25, freq2: 0.0015, speed2: 0.20, r: 35, g: 130, b: 185, opacity: 0.05 },
-                        { yBase: 0.68, amp: 18, freq: 0.0070, speed: 0.38, freq2: 0.0030, speed2: 0.16, r: 45, g: 155, b: 200, opacity: 0.05 },
-                        { yBase: 0.75, amp: 30, freq: 0.0028, speed: 0.16, freq2: 0.0050, speed2: 0.28, r: 18, g: 85, b: 155, opacity: 0.06 },
-                        { yBase: 0.82, amp: 24, freq: 0.0050, speed: 0.30, freq2: 0.0022, speed2: 0.12, r: 30, g: 115, b: 178, opacity: 0.05 },
-                        { yBase: 0.88, amp: 15, freq: 0.0038, speed: 0.24, freq2: 0.0060, speed2: 0.34, r: 55, g: 160, b: 205, opacity: 0.04 }
-                    ];
-
-                    for (var i = 0; i < waveConfigs.length; i++) {
-                        var wc = waveConfigs[i];
-                        var baseY = h * wc.yBase;
+                    for (let i = 0; i < waveyWaveConfigs.length; i++) {
+                        const wc = waveyWaveConfigs[i];
+                        const baseY = h * wc.yBase;
 
                         ctx.beginPath();
                         ctx.moveTo(0, h);
-                        for (var x = 0; x <= w; x += 3) {
-                            var y = baseY
+                        for (let x = 0; x <= w; x += 3) {
+                            const y = baseY
                                 + Math.sin(x * wc.freq + t * wc.speed) * wc.amp
                                 + Math.sin(x * wc.freq2 + t * wc.speed2 + i * 0.8) * wc.amp * 0.6
                                 + Math.cos(x * wc.freq * 0.7 + t * wc.speed * 1.4 + i * 1.3) * wc.amp * 0.3;
@@ -1183,13 +1268,13 @@
 
                     // Subtle surface shimmer dots
                     ctx.save();
-                    var shimmerCount = 60;
-                    for (var i = 0; i < shimmerCount; i++) {
+                    const shimmerCount = 60;
+                    for (let i = 0; i < shimmerCount; i++) {
                         // Deterministic positions using index-based offsets
-                        var sx = (Math.sin(i * 3.7 + t * 0.05) * 0.5 + 0.5) * w;
-                        var sy = (Math.sin(i * 5.3 + t * 0.03 + 2.1) * 0.5 + 0.5) * h;
-                        var shimmerOpacity = (Math.sin(t * 1.5 + i * 2.1) * 0.5 + 0.5) * 0.15;
-                        var shimmerSize = 1 + Math.sin(t * 0.8 + i * 1.7) * 0.5;
+                        const sx = (Math.sin(i * 3.7 + t * 0.05) * 0.5 + 0.5) * w;
+                        const sy = (Math.sin(i * 5.3 + t * 0.03 + 2.1) * 0.5 + 0.5) * h;
+                        const shimmerOpacity = (Math.sin(t * 1.5 + i * 2.1) * 0.5 + 0.5) * 0.15;
+                        const shimmerSize = 1 + Math.sin(t * 0.8 + i * 1.7) * 0.5;
 
                         ctx.beginPath();
                         ctx.arc(sx, sy, shimmerSize, 0, Math.PI * 2);
@@ -1202,26 +1287,34 @@
 
             // --- Spacey theme ---
             themes.spacey = (function () {
+                // Pre-allocate trail buffer (ring buffer to avoid push/shift GC)
+                const trailBuffer = [];
+                for (let i = 0; i < SHOOTING_STAR_TRAIL_MAX; i++) {
+                    trailBuffer.push({ x: 0, y: 0 });
+                }
+
                 // Shooting star state
-                var shootingStar = {
+                const shootingStar = {
                     active: false,
                     x: 0, y: 0,
                     vx: 0, vy: 0,
                     life: 0,
                     maxLife: 0.6,
-                    trail: [],
-                    timer: 8 + Math.random() * 2 // first one appears after 8-10s
+                    trailBuffer: trailBuffer,
+                    trailIndex: 0,
+                    trailCount: 0,
+                    timer: SHOOTING_STAR_INTERVAL_MIN + Math.random() * SHOOTING_STAR_INTERVAL_RANGE
                 };
 
                 // Nebula blobs - 3 slowly drifting colourful clouds
-                var nebulae = [
+                const nebulae = [
                     { cx: 0.25, cy: 0.35, r: 0.18, hue: 'purple', driftX: 0.008, driftY: 0.005, phaseX: 0, phaseY: 1.2 },
                     { cx: 0.70, cy: 0.55, r: 0.22, hue: 'blue', driftX: 0.006, driftY: 0.009, phaseX: 2.5, phaseY: 0.4 },
                     { cx: 0.50, cy: 0.75, r: 0.16, hue: 'pink', driftX: 0.010, driftY: 0.007, phaseX: 4.0, phaseY: 3.1 }
                 ];
 
                 // Nebula colour mappings
-                var nebulaColors = {
+                const nebulaColors = {
                     purple: { r: 120, g: 40, b: 180 },
                     blue:   { r: 40, g: 80, b: 200 },
                     pink:   { r: 180, g: 50, b: 130 }
@@ -1229,6 +1322,13 @@
 
                 return {
                     targetCount: 200,
+
+                    onActivate: function () {
+                        shootingStar.active = false;
+                        shootingStar.trailCount = 0;
+                        shootingStar.trailIndex = 0;
+                        shootingStar.timer = SHOOTING_STAR_INTERVAL_MIN + Math.random() * SHOOTING_STAR_INTERVAL_RANGE;
+                    },
 
                     spawn: function (w, h) {
                         return {
@@ -1248,8 +1348,8 @@
 
                     draw: function (p, ctx, state) {
                         // Oscillating opacity via sine wave
-                        var twinkle = Math.sin(state.timeElapsed * p.twinkleSpeed + p.twinkleOffset);
-                        var opacity = p.baseOpacity * (0.5 + twinkle * 0.5);
+                        const twinkle = Math.sin(state.timeElapsed * p.twinkleSpeed + p.twinkleOffset);
+                        const opacity = p.baseOpacity * (0.5 + twinkle * 0.5);
                         if (opacity < 0.05) return;
 
                         ctx.beginPath();
@@ -1268,10 +1368,10 @@
 
                     drawBackground: function (ctx, w, h, state) {
                         // Dark navy/black radial gradient background
-                        var cx = w * 0.5;
-                        var cy = h * 0.4;
-                        var maxR = Math.max(w, h) * 0.8;
-                        var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+                        const cx = w * 0.5;
+                        const cy = h * 0.4;
+                        const maxR = Math.max(w, h) * 0.8;
+                        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
                         grad.addColorStop(0, '#0a0e1a');
                         grad.addColorStop(0.4, '#060a14');
                         grad.addColorStop(0.8, '#030610');
@@ -1280,16 +1380,16 @@
                         ctx.fillRect(0, 0, w, h);
 
                         // Draw nebula blobs
-                        var t = state.timeElapsed;
-                        for (var i = 0; i < nebulae.length; i++) {
-                            var n = nebulae[i];
-                            var col = nebulaColors[n.hue];
+                        const t = state.timeElapsed;
+                        for (let i = 0; i < nebulae.length; i++) {
+                            const n = nebulae[i];
+                            const col = nebulaColors[n.hue];
                             // Slow drifting position
-                            var nx = (n.cx + Math.sin(t * n.driftX + n.phaseX) * 0.06) * w;
-                            var ny = (n.cy + Math.sin(t * n.driftY + n.phaseY) * 0.05) * h;
-                            var nr = n.r * Math.min(w, h);
+                            const nx = (n.cx + Math.sin(t * n.driftX + n.phaseX) * 0.06) * w;
+                            const ny = (n.cy + Math.sin(t * n.driftY + n.phaseY) * 0.05) * h;
+                            const nr = n.r * Math.min(w, h);
 
-                            var nebGrad = ctx.createRadialGradient(nx, ny, 0, nx, ny, nr);
+                            const nebGrad = ctx.createRadialGradient(nx, ny, 0, nx, ny, nr);
                             nebGrad.addColorStop(0, 'rgba(' + col.r + ', ' + col.g + ', ' + col.b + ', 0.06)');
                             nebGrad.addColorStop(0.3, 'rgba(' + col.r + ', ' + col.g + ', ' + col.b + ', 0.04)');
                             nebGrad.addColorStop(0.6, 'rgba(' + col.r + ', ' + col.g + ', ' + col.b + ', 0.02)');
@@ -1302,8 +1402,7 @@
                     },
 
                     drawForeground: function (ctx, w, h, state, dt) {
-                        var t = state.timeElapsed;
-                        dt = dt || 0.016;
+                        dt = dt || FALLBACK_DT;
 
                         // --- Shooting star ---
                         shootingStar.timer -= dt;
@@ -1313,16 +1412,17 @@
                             shootingStar.active = true;
                             shootingStar.life = 0;
                             shootingStar.maxLife = 0.4 + Math.random() * 0.4;
-                            shootingStar.trail = [];
+                            shootingStar.trailCount = 0;
+                            shootingStar.trailIndex = 0;
                             // Start from a random position in the upper portion
                             shootingStar.x = Math.random() * w;
                             shootingStar.y = Math.random() * h * 0.4;
                             // Move diagonally downward
-                            var speed = 600 + Math.random() * 400;
-                            var angle = Math.PI * 0.15 + Math.random() * Math.PI * 0.2;
+                            const speed = 600 + Math.random() * 400;
+                            const angle = Math.PI * 0.15 + Math.random() * Math.PI * 0.2;
                             shootingStar.vx = Math.cos(angle) * speed;
                             shootingStar.vy = Math.sin(angle) * speed;
-                            shootingStar.timer = 8 + Math.random() * 2; // next one in 8-10s
+                            shootingStar.timer = SHOOTING_STAR_INTERVAL_MIN + Math.random() * SHOOTING_STAR_INTERVAL_RANGE;
                         }
 
                         if (shootingStar.active) {
@@ -1330,24 +1430,27 @@
                             shootingStar.x += shootingStar.vx * dt;
                             shootingStar.y += shootingStar.vy * dt;
 
-                            // Store trail points
-                            shootingStar.trail.push({ x: shootingStar.x, y: shootingStar.y });
-                            // Keep trail length limited
-                            if (shootingStar.trail.length > 20) {
-                                shootingStar.trail.shift();
-                            }
+                            // Store trail point in ring buffer
+                            shootingStar.trailBuffer[shootingStar.trailIndex].x = shootingStar.x;
+                            shootingStar.trailBuffer[shootingStar.trailIndex].y = shootingStar.y;
+                            shootingStar.trailIndex = (shootingStar.trailIndex + 1) % SHOOTING_STAR_TRAIL_MAX;
+                            if (shootingStar.trailCount < SHOOTING_STAR_TRAIL_MAX) shootingStar.trailCount++;
 
                             // Draw the trail
-                            var progress = shootingStar.life / shootingStar.maxLife;
-                            var fadeOut = 1 - progress;
+                            const progress = shootingStar.life / shootingStar.maxLife;
+                            const fadeOut = 1 - progress;
 
-                            if (shootingStar.trail.length > 1) {
-                                for (var i = 1; i < shootingStar.trail.length; i++) {
-                                    var segAlpha = (i / shootingStar.trail.length) * fadeOut * 0.8;
-                                    var segWidth = (i / shootingStar.trail.length) * 2.5;
+                            if (shootingStar.trailCount > 1) {
+                                for (let i = 1; i < shootingStar.trailCount; i++) {
+                                    const prevIdx = (shootingStar.trailIndex - shootingStar.trailCount + i - 1 + SHOOTING_STAR_TRAIL_MAX) % SHOOTING_STAR_TRAIL_MAX;
+                                    const currIdx = (shootingStar.trailIndex - shootingStar.trailCount + i + SHOOTING_STAR_TRAIL_MAX) % SHOOTING_STAR_TRAIL_MAX;
+                                    const prev = shootingStar.trailBuffer[prevIdx];
+                                    const curr = shootingStar.trailBuffer[currIdx];
+                                    const segAlpha = (i / shootingStar.trailCount) * fadeOut * 0.8;
+                                    const segWidth = (i / shootingStar.trailCount) * 2.5;
                                     ctx.beginPath();
-                                    ctx.moveTo(shootingStar.trail[i - 1].x, shootingStar.trail[i - 1].y);
-                                    ctx.lineTo(shootingStar.trail[i].x, shootingStar.trail[i].y);
+                                    ctx.moveTo(prev.x, prev.y);
+                                    ctx.lineTo(curr.x, curr.y);
                                     ctx.strokeStyle = 'rgba(255, 255, 255, ' + segAlpha + ')';
                                     ctx.lineWidth = segWidth;
                                     ctx.lineCap = 'round';
@@ -1355,9 +1458,10 @@
                                 }
 
                                 // Bright head glow
-                                var headX = shootingStar.trail[shootingStar.trail.length - 1].x;
-                                var headY = shootingStar.trail[shootingStar.trail.length - 1].y;
-                                var headGrad = ctx.createRadialGradient(headX, headY, 0, headX, headY, 8);
+                                const headIdx = (shootingStar.trailIndex - 1 + SHOOTING_STAR_TRAIL_MAX) % SHOOTING_STAR_TRAIL_MAX;
+                                const headX = shootingStar.trailBuffer[headIdx].x;
+                                const headY = shootingStar.trailBuffer[headIdx].y;
+                                const headGrad = ctx.createRadialGradient(headX, headY, 0, headX, headY, 8);
                                 headGrad.addColorStop(0, 'rgba(255, 255, 255, ' + (fadeOut * 0.9) + ')');
                                 headGrad.addColorStop(0.5, 'rgba(200, 220, 255, ' + (fadeOut * 0.3) + ')');
                                 headGrad.addColorStop(1, 'rgba(150, 180, 255, 0)');
@@ -1372,7 +1476,8 @@
                                 shootingStar.x > w + 50 || shootingStar.y > h + 50 ||
                                 shootingStar.x < -50 || shootingStar.y < -50) {
                                 shootingStar.active = false;
-                                shootingStar.trail = [];
+                                shootingStar.trailCount = 0;
+                                shootingStar.trailIndex = 0;
                             }
                         }
                     }
@@ -1380,6 +1485,15 @@
             })();
 
             // --- Colourful theme ---
+            // Hoisted aurora configs (avoid per-frame allocation)
+            const colourfulAuroraConfigs = [
+                { yBase: 0.30, amp: 40, freq: 0.003, speed: 0.18, hueBase: 0,   opacity: 0.06 },
+                { yBase: 0.40, amp: 35, freq: 0.004, speed: 0.22, hueBase: 72,  opacity: 0.05 },
+                { yBase: 0.50, amp: 45, freq: 0.0025, speed: 0.15, hueBase: 144, opacity: 0.06 },
+                { yBase: 0.60, amp: 30, freq: 0.005, speed: 0.25, hueBase: 216, opacity: 0.05 },
+                { yBase: 0.72, amp: 38, freq: 0.0035, speed: 0.20, hueBase: 288, opacity: 0.06 }
+            ];
+
             themes.colourful = {
                 targetCount: 45,
 
@@ -1413,8 +1527,8 @@
 
                 draw: function (p, ctx, state) {
                     // Hue shifts over time for kaleidoscopic feel
-                    var hue = (p.hueOffset + state.timeElapsed * 15) % 360;
-                    var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+                    const hue = (p.hueOffset + state.timeElapsed * 15) % 360;
+                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
                     grad.addColorStop(0, 'hsla(' + hue + ', 80%, 65%, ' + p.opacity + ')');
                     grad.addColorStop(0.5, 'hsla(' + hue + ', 70%, 55%, ' + (p.opacity * 0.5) + ')');
                     grad.addColorStop(1, 'hsla(' + hue + ', 60%, 45%, 0)');
@@ -1425,22 +1539,22 @@
                 },
 
                 drawBackground: function (ctx, w, h, state) {
-                    var t = state.timeElapsed;
+                    const t = state.timeElapsed;
                     // Slowly rotating rainbow hue gradient background
                     // Use a base hue that shifts over time
-                    var baseHue = (t * 8) % 360;
-                    var grad = ctx.createLinearGradient(
+                    const baseHue = (t * 8) % 360;
+                    const grad = ctx.createLinearGradient(
                         w * 0.5 + Math.cos(t * 0.1) * w * 0.4,
                         h * 0.5 + Math.sin(t * 0.1) * h * 0.4,
                         w * 0.5 + Math.cos(t * 0.1 + Math.PI) * w * 0.4,
                         h * 0.5 + Math.sin(t * 0.1 + Math.PI) * h * 0.4
                     );
-                    var hue1 = baseHue;
-                    var hue2 = (baseHue + 60) % 360;
-                    var hue3 = (baseHue + 120) % 360;
-                    var hue4 = (baseHue + 180) % 360;
-                    var hue5 = (baseHue + 240) % 360;
-                    var hue6 = (baseHue + 300) % 360;
+                    const hue1 = baseHue;
+                    const hue2 = (baseHue + 60) % 360;
+                    const hue3 = (baseHue + 120) % 360;
+                    const hue4 = (baseHue + 180) % 360;
+                    const hue5 = (baseHue + 240) % 360;
+                    const hue6 = (baseHue + 300) % 360;
                     grad.addColorStop(0, 'hsl(' + hue1 + ', 35%, 12%)');
                     grad.addColorStop(0.2, 'hsl(' + hue2 + ', 35%, 14%)');
                     grad.addColorStop(0.4, 'hsl(' + hue3 + ', 35%, 12%)');
@@ -1452,27 +1566,19 @@
                 },
 
                 drawForeground: function (ctx, w, h, state) {
-                    var t = state.timeElapsed;
+                    const t = state.timeElapsed;
 
                     // 5 aurora-like wave layers with hue-shifting fills
-                    var auroraConfigs = [
-                        { yBase: 0.30, amp: 40, freq: 0.003, speed: 0.18, hueBase: 0,   opacity: 0.06 },
-                        { yBase: 0.40, amp: 35, freq: 0.004, speed: 0.22, hueBase: 72,  opacity: 0.05 },
-                        { yBase: 0.50, amp: 45, freq: 0.0025, speed: 0.15, hueBase: 144, opacity: 0.06 },
-                        { yBase: 0.60, amp: 30, freq: 0.005, speed: 0.25, hueBase: 216, opacity: 0.05 },
-                        { yBase: 0.72, amp: 38, freq: 0.0035, speed: 0.20, hueBase: 288, opacity: 0.06 }
-                    ];
-
-                    for (var i = 0; i < auroraConfigs.length; i++) {
-                        var ac = auroraConfigs[i];
-                        var baseY = h * ac.yBase;
+                    for (let i = 0; i < colourfulAuroraConfigs.length; i++) {
+                        const ac = colourfulAuroraConfigs[i];
+                        const baseY = h * ac.yBase;
                         // Hue shifts over time
-                        var hue = (ac.hueBase + t * 12) % 360;
+                        const hue = (ac.hueBase + t * 12) % 360;
 
                         ctx.beginPath();
                         ctx.moveTo(0, h);
-                        for (var x = 0; x <= w; x += 3) {
-                            var y = baseY
+                        for (let x = 0; x <= w; x += 3) {
+                            const y = baseY
                                 + Math.sin(x * ac.freq + t * ac.speed) * ac.amp
                                 + Math.sin(x * ac.freq * 0.6 + t * ac.speed * 1.3 + i * 1.5) * ac.amp * 0.5
                                 + Math.cos(x * ac.freq * 0.3 + t * ac.speed * 0.7 + i * 2.8) * ac.amp * 0.3;
@@ -1497,15 +1603,15 @@
                 }
 
                 // Wind current line state (persistent across frames)
-                var windLines = [];
-                var windLinesInited = false;
-                var windLinesW = 0;
-                var windLinesH = 0;
-                var WIND_LINE_COUNT = 8;
+                const windLines = [];
+                let windLinesInited = false;
+                let windLinesW = 0;
+                let windLinesH = 0;
+                const WIND_LINE_COUNT = 8;
 
                 function initWindLines(w, h) {
-                    windLines = [];
-                    for (var i = 0; i < WIND_LINE_COUNT; i++) {
+                    windLines.length = 0;
+                    for (let i = 0; i < WIND_LINE_COUNT; i++) {
                         windLines.push({
                             y: h * (0.1 + 0.8 * (i / (WIND_LINE_COUNT - 1))),
                             speed: 60 + Math.random() * 80,
@@ -1528,7 +1634,7 @@
                     spawn: function (w, h) {
                         // Leaf-like ellipse particles
                         if (!windLinesInited || windLinesW !== w || windLinesH !== h) initWindLines(w, h);
-                        var leafHues = [
+                        const leafHues = [
                             { r: 90, g: 140, b: 60 },   // green
                             { r: 120, g: 160, b: 50 },  // light green
                             { r: 180, g: 130, b: 40 },  // amber
@@ -1536,7 +1642,7 @@
                             { r: 200, g: 160, b: 50 },  // golden
                             { r: 140, g: 70, b: 40 }    // dark brown
                         ];
-                        var col = leafHues[Math.floor(Math.random() * leafHues.length)];
+                        const col = leafHues[Math.floor(Math.random() * leafHues.length)];
                         return {
                             x: -20 - Math.random() * w * 0.3,
                             y: Math.random() * h,
@@ -1556,7 +1662,7 @@
                     },
 
                     update: function (p, dt, w, h, state) {
-                        var wind = getWindStrength(state.timeElapsed);
+                        const wind = getWindStrength(state.timeElapsed);
                         // Move horizontally with wind
                         p.x += p.baseSpeed * wind * dt;
                         // Vertical wobble
@@ -1592,7 +1698,7 @@
 
                     drawBackground: function (ctx, w, h, state) {
                         // Soft sky-blue gradient background
-                        var grad = ctx.createLinearGradient(0, 0, 0, h);
+                        const grad = ctx.createLinearGradient(0, 0, 0, h);
                         grad.addColorStop(0, '#6ba3c7');
                         grad.addColorStop(0.3, '#85b8d8');
                         grad.addColorStop(0.6, '#a0cce5');
@@ -1603,8 +1709,8 @@
                     },
 
                     drawForeground: function (ctx, w, h, state) {
-                        var t = state.timeElapsed;
-                        var wind = getWindStrength(t);
+                        const t = state.timeElapsed;
+                        const wind = getWindStrength(t);
 
                         if (!windLinesInited || windLines.length === 0 || windLinesW !== w || windLinesH !== h) initWindLines(w, h);
 
@@ -1613,20 +1719,20 @@
                         ctx.lineWidth = 1;
                         ctx.lineCap = 'round';
 
-                        for (var i = 0; i < windLines.length; i++) {
-                            var wl = windLines[i];
+                        for (let i = 0; i < windLines.length; i++) {
+                            const wl = windLines[i];
                             // Advance the offset so the line moves across the screen
-                            var lineX = (wl.offset + t * wl.speed * wind) % (w + wl.length) - wl.length * 0.3;
-                            var baseY = wl.y + Math.sin(t * 0.2 + wl.phase) * 20;
+                            const lineX = (wl.offset + t * wl.speed * wind) % (w + wl.length) - wl.length * 0.3;
+                            const baseY = wl.y + Math.sin(t * 0.2 + wl.phase) * 20;
 
                             ctx.beginPath();
                             ctx.strokeStyle = 'rgba(255, 255, 255, ' + (wl.opacity * wind) + ')';
 
-                            var segments = 60;
-                            for (var s = 0; s <= segments; s++) {
-                                var frac = s / segments;
-                                var px = lineX + frac * wl.length;
-                                var py = baseY + Math.sin(px * wl.freq + t * 1.5 + wl.phase) * wl.amp
+                            const segments = 60;
+                            for (let s = 0; s <= segments; s++) {
+                                const frac = s / segments;
+                                const px = lineX + frac * wl.length;
+                                const py = baseY + Math.sin(px * wl.freq + t * 1.5 + wl.phase) * wl.amp
                                               + Math.sin(px * wl.freq * 2.3 + t * 0.8 + wl.phase * 2) * wl.amp * 0.3;
 
                                 // Fade at the ends of the line for a soft look
@@ -1643,15 +1749,15 @@
             // --- Stormy theme ---
             themes.stormy = (function () {
                 // Lightning flash state
-                var lightning = {
+                const lightning = {
                     active: false,
                     opacity: 0,
-                    timer: 6 + Math.random() * 10, // first flash in 6-16s
+                    timer: LIGHTNING_INTERVAL_MIN + Math.random() * LIGHTNING_INTERVAL_RANGE,
                     fadeSpeed: 3.0 // how fast the flash fades out
                 };
 
                 // Cloud shape definitions (positioned at the top of the screen)
-                var clouds = [
+                const clouds = [
                     { cx: 0.12, cy: 0.06, rx: 0.18, ry: 0.08, phase: 0 },
                     { cx: 0.30, cy: 0.04, rx: 0.22, ry: 0.10, phase: 1.5 },
                     { cx: 0.52, cy: 0.05, rx: 0.20, ry: 0.09, phase: 3.0 },
@@ -1661,6 +1767,12 @@
 
                 return {
                     targetCount: 150,
+
+                    onActivate: function () {
+                        lightning.active = false;
+                        lightning.opacity = 0;
+                        lightning.timer = LIGHTNING_INTERVAL_MIN + Math.random() * LIGHTNING_INTERVAL_RANGE;
+                    },
 
                     spawn: function (w, h) {
                         return {
@@ -1684,9 +1796,9 @@
 
                     draw: function (p, ctx) {
                         // Draw rain drop as a short diagonal line
-                        var angle = Math.atan2(p.speed, -p.windDrift);
-                        var dx = Math.cos(angle) * p.length;
-                        var dy = Math.sin(angle) * p.length;
+                        const angle = Math.atan2(p.speed, -p.windDrift);
+                        const dx = Math.cos(angle) * p.length;
+                        const dy = Math.sin(angle) * p.length;
                         ctx.beginPath();
                         ctx.moveTo(p.x, p.y);
                         ctx.lineTo(p.x + dx, p.y + dy);
@@ -1698,7 +1810,7 @@
 
                     drawBackground: function (ctx, w, h, state) {
                         // Dark grey/purple gradient background
-                        var grad = ctx.createLinearGradient(0, 0, 0, h);
+                        const grad = ctx.createLinearGradient(0, 0, 0, h);
                         grad.addColorStop(0, '#1a1525');
                         grad.addColorStop(0.3, '#1e1830');
                         grad.addColorStop(0.6, '#22202e');
@@ -1707,18 +1819,18 @@
                         ctx.fillRect(0, 0, w, h);
 
                         // Dark cloud shapes at the top using radial gradients
-                        for (var i = 0; i < clouds.length; i++) {
-                            var c = clouds[i];
-                            var cx = (c.cx + Math.sin(state.timeElapsed * 0.02 + c.phase) * 0.02) * w;
-                            var cy = c.cy * h;
-                            var rx = c.rx * w;
-                            var ry = c.ry * h;
+                        for (let i = 0; i < clouds.length; i++) {
+                            const c = clouds[i];
+                            const cx = (c.cx + Math.sin(state.timeElapsed * 0.02 + c.phase) * 0.02) * w;
+                            const cy = c.cy * h;
+                            const rx = c.rx * w;
+                            const ry = c.ry * h;
 
                             // Draw cloud as a large elliptical radial gradient
                             ctx.save();
                             ctx.translate(cx, cy);
                             ctx.scale(1, ry / rx);
-                            var cloudGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+                            const cloudGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
                             cloudGrad.addColorStop(0, 'rgba(25, 20, 35, 0.8)');
                             cloudGrad.addColorStop(0.4, 'rgba(30, 25, 40, 0.5)');
                             cloudGrad.addColorStop(0.7, 'rgba(35, 30, 45, 0.25)');
@@ -1733,7 +1845,7 @@
                             ctx.save();
                             ctx.translate(cx + rx * 0.3, cy + ry * 0.2);
                             ctx.scale(1, (ry * 0.7) / (rx * 0.6));
-                            var cloudGrad2 = ctx.createRadialGradient(0, 0, 0, 0, 0, rx * 0.6);
+                            const cloudGrad2 = ctx.createRadialGradient(0, 0, 0, 0, 0, rx * 0.6);
                             cloudGrad2.addColorStop(0, 'rgba(20, 15, 30, 0.7)');
                             cloudGrad2.addColorStop(0.5, 'rgba(28, 22, 38, 0.35)');
                             cloudGrad2.addColorStop(1, 'rgba(30, 25, 40, 0)');
@@ -1746,7 +1858,7 @@
                     },
 
                     drawForeground: function (ctx, w, h, state, dt) {
-                        dt = dt || 0.016;
+                        dt = dt || FALLBACK_DT;
 
                         // --- Lightning flash ---
                         lightning.timer -= dt;
@@ -1755,7 +1867,7 @@
                             // Trigger a lightning flash
                             lightning.active = true;
                             lightning.opacity = 0.35 + Math.random() * 0.2; // brief white overlay
-                            lightning.timer = 6 + Math.random() * 10; // next flash in 6-16s
+                            lightning.timer = LIGHTNING_INTERVAL_MIN + Math.random() * LIGHTNING_INTERVAL_RANGE;
                         }
 
                         if (lightning.active) {
@@ -1779,14 +1891,14 @@
             // --- Sunny theme ---
             themes.sunny = (function () {
                 // Sun position (relative to canvas)
-                var sunX = 0.5;
-                var sunY = 0.22;
-                var sunRadius = 0.06; // relative to Math.min(w, h)
+                const sunX = 0.5;
+                const sunY = 0.22;
+                const sunRadius = 0.06; // relative to Math.min(w, h)
 
                 // Light rays radiating from the sun
-                var rayCount = 12;
-                var rays = [];
-                for (var i = 0; i < rayCount; i++) {
+                const rayCount = 12;
+                const rays = [];
+                for (let i = 0; i < rayCount; i++) {
                     rays.push({
                         angle: (i / rayCount) * Math.PI * 2,
                         baseWidth: 0.015 + Math.random() * 0.02,
@@ -1798,7 +1910,7 @@
                 }
 
                 // Rotation speed for the rays (very slow)
-                var rotationSpeed = 0.02;
+                const rotationSpeed = 0.02;
 
                 return {
                     targetCount: 30,
@@ -1829,12 +1941,12 @@
 
                     draw: function (p, ctx, state) {
                         // Oscillating opacity for a gentle twinkle
-                        var twinkle = Math.sin(state.timeElapsed * p.twinkleSpeed + p.twinkleOffset);
-                        var opacity = p.baseOpacity * (0.6 + twinkle * 0.4);
+                        const twinkle = Math.sin(state.timeElapsed * p.twinkleSpeed + p.twinkleOffset);
+                        const opacity = p.baseOpacity * (0.6 + twinkle * 0.4);
                         if (opacity < 0.03) return;
 
                         // Draw dust mote as a soft glowing circle
-                        var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2.5);
+                        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2.5);
                         grad.addColorStop(0, 'rgba(255, 240, 200, ' + opacity + ')');
                         grad.addColorStop(0.5, 'rgba(255, 230, 170, ' + (opacity * 0.5) + ')');
                         grad.addColorStop(1, 'rgba(255, 220, 140, 0)');
@@ -1845,14 +1957,14 @@
                     },
 
                     drawBackground: function (ctx, w, h, state) {
-                        var t = state.timeElapsed;
-                        var minDim = Math.min(w, h);
+                        const t = state.timeElapsed;
+                        const minDim = Math.min(w, h);
 
                         // Warm golden radial gradient background
-                        var cx = w * sunX;
-                        var cy = h * sunY;
-                        var maxR = Math.max(w, h) * 1.2;
-                        var bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+                        const cx = w * sunX;
+                        const cy = h * sunY;
+                        const maxR = Math.max(w, h) * 1.2;
+                        const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
                         bgGrad.addColorStop(0, '#fff5d6');
                         bgGrad.addColorStop(0.15, '#ffe8a0');
                         bgGrad.addColorStop(0.35, '#f5c84a');
@@ -1863,33 +1975,33 @@
                         ctx.fillRect(0, 0, w, h);
 
                         // --- Light rays radiating from the sun ---
-                        var rotation = t * rotationSpeed;
+                        const rotation = t * rotationSpeed;
                         ctx.save();
                         ctx.translate(cx, cy);
                         ctx.rotate(rotation);
 
-                        for (var i = 0; i < rays.length; i++) {
-                            var ray = rays[i];
+                        for (let i = 0; i < rays.length; i++) {
+                            const ray = rays[i];
                             // Pulsing width and opacity
-                            var pulse = Math.sin(t * ray.pulseSpeed + ray.pulseOffset);
-                            var rayWidth = ray.baseWidth * (0.7 + pulse * 0.3) * minDim;
-                            var rayLength = ray.length * maxR;
-                            var rayOpacity = ray.opacityBase * (0.6 + pulse * 0.4);
+                            const pulse = Math.sin(t * ray.pulseSpeed + ray.pulseOffset);
+                            const rayWidth = ray.baseWidth * (0.7 + pulse * 0.3) * minDim;
+                            const rayLength = ray.length * maxR;
+                            const rayOpacity = ray.opacityBase * (0.6 + pulse * 0.4);
 
                             // Draw ray as a triangle/wedge
                             ctx.beginPath();
                             ctx.moveTo(0, 0);
-                            var halfAngle = Math.atan2(rayWidth, rayLength * 0.3);
-                            var x1 = Math.cos(ray.angle - halfAngle) * rayLength;
-                            var y1 = Math.sin(ray.angle - halfAngle) * rayLength;
-                            var x2 = Math.cos(ray.angle + halfAngle) * rayLength;
-                            var y2 = Math.sin(ray.angle + halfAngle) * rayLength;
+                            const halfAngle = Math.atan2(rayWidth, rayLength * 0.3);
+                            const x1 = Math.cos(ray.angle - halfAngle) * rayLength;
+                            const y1 = Math.sin(ray.angle - halfAngle) * rayLength;
+                            const x2 = Math.cos(ray.angle + halfAngle) * rayLength;
+                            const y2 = Math.sin(ray.angle + halfAngle) * rayLength;
                             ctx.lineTo(x1, y1);
                             ctx.lineTo(x2, y2);
                             ctx.closePath();
 
                             // Gradient along the ray for a natural fade
-                            var rayGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, rayLength);
+                            const rayGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, rayLength);
                             rayGrad.addColorStop(0, 'rgba(255, 248, 220, ' + rayOpacity + ')');
                             rayGrad.addColorStop(0.3, 'rgba(255, 240, 190, ' + (rayOpacity * 0.6) + ')');
                             rayGrad.addColorStop(0.7, 'rgba(255, 230, 150, ' + (rayOpacity * 0.25) + ')');
@@ -1902,8 +2014,8 @@
 
                         // --- Glowing sun ---
                         // Outer glow (large soft halo)
-                        var glowR = sunRadius * minDim * 4;
-                        var outerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+                        const glowR = sunRadius * minDim * 4;
+                        const outerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
                         outerGlow.addColorStop(0, 'rgba(255, 250, 230, 0.25)');
                         outerGlow.addColorStop(0.2, 'rgba(255, 240, 200, 0.15)');
                         outerGlow.addColorStop(0.5, 'rgba(255, 220, 150, 0.06)');
@@ -1914,8 +2026,8 @@
                         ctx.fill();
 
                         // Middle glow
-                        var midR = sunRadius * minDim * 2;
-                        var midGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, midR);
+                        const midR = sunRadius * minDim * 2;
+                        const midGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, midR);
                         midGlow.addColorStop(0, 'rgba(255, 252, 240, 0.4)');
                         midGlow.addColorStop(0.4, 'rgba(255, 245, 210, 0.2)');
                         midGlow.addColorStop(1, 'rgba(255, 235, 180, 0)');
@@ -1925,8 +2037,8 @@
                         ctx.fill();
 
                         // Sun core (bright white-yellow disc)
-                        var coreR = sunRadius * minDim;
-                        var coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+                        const coreR = sunRadius * minDim;
+                        const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
                         coreGrad.addColorStop(0, 'rgba(255, 255, 250, 0.95)');
                         coreGrad.addColorStop(0.5, 'rgba(255, 250, 230, 0.85)');
                         coreGrad.addColorStop(0.8, 'rgba(255, 240, 200, 0.6)');
@@ -1963,34 +2075,40 @@
                         ctx.fillRect(0, 0, w, h);
                     },
                     // Draw foreground effects (called after particles)
-                    drawForeground: function (ctx, w, h, state) {}
+                    drawForeground: function (ctx, w, h, state) {},
+                    // Optional activation callback
+                    onActivate: null
                 };
             }
 
             // Get the active theme config, falling back to defaults
             function getThemeConfig(themeName) {
-                var config = themes[themeName] || {};
-                var defaults = getDefaultThemeConfig();
+                const config = themes[themeName] || {};
+                const defaults = getDefaultThemeConfig();
                 return {
                     targetCount: config.targetCount !== undefined ? config.targetCount : defaults.targetCount,
                     spawn: config.spawn || defaults.spawn,
                     update: config.update || defaults.update,
                     draw: config.draw || defaults.draw,
                     drawBackground: config.drawBackground || defaults.drawBackground,
-                    drawForeground: config.drawForeground || defaults.drawForeground
+                    drawForeground: config.drawForeground || defaults.drawForeground,
+                    onActivate: config.onActivate || null
                 };
             }
 
             // --- Particle system ---
 
+            // Cached theme config - rebuilt only on theme switch
+            let cachedThemeConfig = null;
+
             // Spawn particles up to the theme's target count
-            function spawnParticles(themeName) {
-                var config = getThemeConfig(themeName);
-                var target = config.targetCount;
-                var w = canvas.width;
-                var h = canvas.height;
-                var particles = [];
-                for (var i = 0; i < target; i++) {
+            function spawnParticles() {
+                const config = cachedThemeConfig;
+                const target = config.targetCount;
+                const w = canvas.width;
+                const h = canvas.height;
+                const particles = [];
+                for (let i = 0; i < target; i++) {
                     particles.push(config.spawn(w, h));
                 }
                 return particles;
@@ -1998,13 +2116,13 @@
 
             // Update all particles; recycle any that are off-screen or flagged
             function updateParticles(dt) {
-                var config = getThemeConfig(state.currentTheme);
-                var w = canvas.width;
-                var h = canvas.height;
-                var particles = state.particles;
+                const config = cachedThemeConfig;
+                const w = canvas.width;
+                const h = canvas.height;
+                const particles = state.particles;
 
-                for (var i = 0; i < particles.length; i++) {
-                    var alive = config.update(particles[i], dt, w, h, state);
+                for (let i = 0; i < particles.length; i++) {
+                    const alive = config.update(particles[i], dt, w, h, state);
                     if (!alive) {
                         // Recycle: replace with a fresh particle
                         particles[i] = config.spawn(w, h);
@@ -2012,7 +2130,7 @@
                 }
 
                 // Maintain target count (add if below, trim if above)
-                var target = config.targetCount;
+                const target = config.targetCount;
                 while (particles.length < target) {
                     particles.push(config.spawn(w, h));
                 }
@@ -2023,8 +2141,8 @@
 
             // Draw all particles
             function drawParticles() {
-                var config = getThemeConfig(state.currentTheme);
-                for (var i = 0; i < state.particles.length; i++) {
+                const config = cachedThemeConfig;
+                for (let i = 0; i < state.particles.length; i++) {
                     config.draw(state.particles[i], ctx, state);
                 }
             }
@@ -2033,24 +2151,37 @@
             function reinitialiseParticles(themeName, preserveTime) {
                 state.currentTheme = themeName;
                 if (!preserveTime) state.timeElapsed = 0;
-                state.particles = spawnParticles(themeName);
+                cachedThemeConfig = getThemeConfig(themeName);
+                // Reset stale timers for themes with periodic effects
+                if (cachedThemeConfig.onActivate) cachedThemeConfig.onActivate();
+                state.particles = spawnParticles();
             }
 
             // --- Animation loop ---
-            var lastTimestamp = 0;
+            let lastTimestamp = 0;
 
             function animate(timestamp) {
                 requestAnimationFrame(animate);
 
-                // Delta time in seconds, capped at 100ms to avoid jumps
-                var dt = lastTimestamp ? Math.min((timestamp - lastTimestamp) / 1000, 0.1) : 0.016;
+                // Delta time in seconds, capped to avoid jumps
+                const dt = lastTimestamp ? Math.min((timestamp - lastTimestamp) / 1000, MAX_DT) : FALLBACK_DT;
                 lastTimestamp = timestamp;
 
                 state.timeElapsed += dt;
 
-                var w = canvas.width;
-                var h = canvas.height;
-                var config = getThemeConfig(state.currentTheme);
+                if (state.autoCycle) {
+                    state.cycleTimer += dt;
+                    if (state.cycleTimer >= state.cycleInterval) {
+                        state.cycleTimer = 0;
+                        const currentIdx = THEME_NAMES.indexOf(state.currentTheme);
+                        const nextIdx = (currentIdx + 1) % THEME_NAMES.length;
+                        switchTheme(THEME_NAMES[nextIdx]);
+                    }
+                }
+
+                const w = canvas.width;
+                const h = canvas.height;
+                const config = cachedThemeConfig;
 
                 // Draw background
                 config.drawBackground(ctx, w, h, state);
@@ -2076,22 +2207,93 @@
                     }
                 }
 
+                // Share a single Date object per frame
+                const frameDate = new Date();
+
                 // Draw Sun & Moon clock on the main canvas
-                drawSunMoonClock(ctx, w, h);
+                drawSunMoonClock(ctx, w, h, frameDate);
 
                 // Update clock overlays
-                updateDigitalClock();
-                updateAnalogueClock();
+                updateDigitalClock(frameDate);
+                updateAnalogueClock(frameDate);
             }
 
-            // --- Handle window resize: re-spawn particles ---
+            // --- Handle window resize: consolidated single handler ---
             window.addEventListener('resize', function () {
+                resizeCanvas();
                 transition.active = false;
                 transition.snapshotCanvas = null;
                 reinitialiseParticles(state.currentTheme, true);
             });
 
+            // --- localStorage persistence ---
+            function savePreferences() {
+                try {
+                    localStorage.setItem('calmVisualiser_theme', state.currentTheme);
+                    localStorage.setItem('calmVisualiser_clockType', state.clockType);
+                    localStorage.setItem('calmVisualiser_clockOpacity', String(state.clockOpacity));
+                    localStorage.setItem('calmVisualiser_autoCycle', state.autoCycle ? 'true' : 'false');
+                    localStorage.setItem('calmVisualiser_cycleInterval', String(state.cycleInterval));
+                } catch (e) {
+                    // localStorage may be unavailable
+                }
+            }
+
+            function loadPreferences() {
+                try {
+                    const savedTheme = localStorage.getItem('calmVisualiser_theme');
+                    const savedClockType = localStorage.getItem('calmVisualiser_clockType');
+                    const savedOpacity = localStorage.getItem('calmVisualiser_clockOpacity');
+
+                    if (savedTheme && themes[savedTheme]) {
+                        themeBtns.forEach(function (b) { b.classList.remove('active'); });
+                        const targetBtn = Array.from(themeBtns).find(function (b) { return b.dataset.theme === savedTheme; });
+                        if (targetBtn) targetBtn.classList.add('active');
+                        sceneTitle.textContent = savedTheme;
+                        state.currentTheme = savedTheme;
+                    }
+
+                    if (savedClockType) {
+                        clockTypeBtns.forEach(function (b) { b.classList.remove('active'); });
+                        const targetBtn = Array.from(clockTypeBtns).find(function (b) { return b.dataset.clock === savedClockType; });
+                        if (targetBtn) targetBtn.classList.add('active');
+                        state.clockType = savedClockType;
+                    }
+
+                    if (savedOpacity !== null) {
+                        const val = parseFloat(savedOpacity);
+                        if (!isNaN(val)) {
+                            state.clockOpacity = val;
+                            opacitySlider.value = String(Math.round(val * 100));
+                            opacityValue.textContent = Math.round(val * 100) + '%';
+                        }
+                    }
+
+                    const savedAutoCycle = localStorage.getItem('calmVisualiser_autoCycle');
+                    const savedCycleInterval = localStorage.getItem('calmVisualiser_cycleInterval');
+
+                    if (savedAutoCycle === 'true') {
+                        state.autoCycle = true;
+                        btnAutoCycle.textContent = 'On';
+                        btnAutoCycle.classList.add('active');
+                        cycleIntervalRow.style.display = '';
+                    }
+
+                    if (savedCycleInterval !== null) {
+                        const interval = parseInt(savedCycleInterval, 10);
+                        if (!isNaN(interval) && interval >= 10 && interval <= 300) {
+                            state.cycleInterval = interval;
+                            cycleIntervalSlider.value = String(interval);
+                            cycleIntervalValue.textContent = interval + 's';
+                        }
+                    }
+                } catch (e) {
+                    // localStorage may be unavailable
+                }
+            }
+
             // --- Initialise and start ---
+            loadPreferences();
             reinitialiseParticles(state.currentTheme);
             requestAnimationFrame(animate);
         })();
