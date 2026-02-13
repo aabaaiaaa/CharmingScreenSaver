@@ -35,7 +35,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the Watery theme with: deep ocean blue gradient background, translucent bubble particles that rise slowly with gentle sine-wave wobble, 4-5 layered horizontal wave curves drawn with semi-transparent fills that slowly undulate across the screen, and subtle light ray effects from the top. All movement should feel slow and calming.
 
 ### TASK-005: Implement the Sandy visualisation
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-003
 - **Description**: Create the Sandy theme with: warm amber/tan/gold gradient background, tiny sand grain particles drifting slowly to the right, 3-4 smooth dune curves at the lower portion of the screen that shift slowly over time, and a subtle heat shimmer effect (thin horizontal wavy lines with very low opacity).
