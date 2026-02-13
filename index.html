@@ -1770,6 +1770,173 @@
                 };
             })();
 
+            // --- Sunny theme ---
+            themes.sunny = (function () {
+                // Sun position (relative to canvas)
+                var sunX = 0.5;
+                var sunY = 0.22;
+                var sunRadius = 0.06; // relative to Math.min(w, h)
+
+                // Light rays radiating from the sun
+                var rayCount = 12;
+                var rays = [];
+                for (var i = 0; i < rayCount; i++) {
+                    rays.push({
+                        angle: (i / rayCount) * Math.PI * 2,
+                        baseWidth: 0.015 + Math.random() * 0.02,
+                        length: 0.3 + Math.random() * 0.25,
+                        pulseSpeed: 0.3 + Math.random() * 0.4,
+                        pulseOffset: Math.random() * Math.PI * 2,
+                        opacityBase: 0.04 + Math.random() * 0.03
+                    });
+                }
+
+                // Rotation speed for the rays (very slow)
+                var rotationSpeed = 0.02;
+
+                return {
+                    targetCount: 30,
+
+                    spawn: function (w, h) {
+                        return {
+                            x: Math.random() * w,
+                            y: h * 0.3 + Math.random() * h * 0.7,
+                            size: 1 + Math.random() * 2.5,
+                            baseOpacity: 0.15 + Math.random() * 0.25,
+                            speedY: -(8 + Math.random() * 15), // float upward
+                            driftSpeed: 0.5 + Math.random() * 1.0,
+                            driftOffset: Math.random() * Math.PI * 2,
+                            twinkleSpeed: 0.8 + Math.random() * 1.5,
+                            twinkleOffset: Math.random() * Math.PI * 2
+                        };
+                    },
+
+                    update: function (p, dt, w, h, state) {
+                        // Float gently upward
+                        p.y += p.speedY * dt;
+                        // Subtle horizontal drift using sine wave
+                        p.x += Math.sin(state.timeElapsed * p.driftSpeed + p.driftOffset) * 12 * dt;
+                        // Recycle when above screen
+                        if (p.y < -10) return false;
+                        return true;
+                    },
+
+                    draw: function (p, ctx, state) {
+                        // Oscillating opacity for a gentle twinkle
+                        var twinkle = Math.sin(state.timeElapsed * p.twinkleSpeed + p.twinkleOffset);
+                        var opacity = p.baseOpacity * (0.6 + twinkle * 0.4);
+                        if (opacity < 0.03) return;
+
+                        // Draw dust mote as a soft glowing circle
+                        var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2.5);
+                        grad.addColorStop(0, 'rgba(255, 240, 200, ' + opacity + ')');
+                        grad.addColorStop(0.5, 'rgba(255, 230, 170, ' + (opacity * 0.5) + ')');
+                        grad.addColorStop(1, 'rgba(255, 220, 140, 0)');
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.size * 2.5, 0, Math.PI * 2);
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+                    },
+
+                    drawBackground: function (ctx, w, h, state) {
+                        var t = state.timeElapsed;
+                        var minDim = Math.min(w, h);
+
+                        // Warm golden radial gradient background
+                        var cx = w * sunX;
+                        var cy = h * sunY;
+                        var maxR = Math.max(w, h) * 1.2;
+                        var bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+                        bgGrad.addColorStop(0, '#fff5d6');
+                        bgGrad.addColorStop(0.15, '#ffe8a0');
+                        bgGrad.addColorStop(0.35, '#f5c84a');
+                        bgGrad.addColorStop(0.55, '#e0a020');
+                        bgGrad.addColorStop(0.8, '#c07818');
+                        bgGrad.addColorStop(1, '#905510');
+                        ctx.fillStyle = bgGrad;
+                        ctx.fillRect(0, 0, w, h);
+
+                        // --- Light rays radiating from the sun ---
+                        var rotation = t * rotationSpeed;
+                        ctx.save();
+                        ctx.translate(cx, cy);
+                        ctx.rotate(rotation);
+
+                        for (var i = 0; i < rays.length; i++) {
+                            var ray = rays[i];
+                            // Pulsing width and opacity
+                            var pulse = Math.sin(t * ray.pulseSpeed + ray.pulseOffset);
+                            var rayWidth = ray.baseWidth * (0.7 + pulse * 0.3) * minDim;
+                            var rayLength = ray.length * maxR;
+                            var rayOpacity = ray.opacityBase * (0.6 + pulse * 0.4);
+
+                            // Draw ray as a triangle/wedge
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            var halfAngle = Math.atan2(rayWidth, rayLength * 0.3);
+                            var x1 = Math.cos(ray.angle - halfAngle) * rayLength;
+                            var y1 = Math.sin(ray.angle - halfAngle) * rayLength;
+                            var x2 = Math.cos(ray.angle + halfAngle) * rayLength;
+                            var y2 = Math.sin(ray.angle + halfAngle) * rayLength;
+                            ctx.lineTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.closePath();
+
+                            // Gradient along the ray for a natural fade
+                            var rayGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, rayLength);
+                            rayGrad.addColorStop(0, 'rgba(255, 248, 220, ' + rayOpacity + ')');
+                            rayGrad.addColorStop(0.3, 'rgba(255, 240, 190, ' + (rayOpacity * 0.6) + ')');
+                            rayGrad.addColorStop(0.7, 'rgba(255, 230, 150, ' + (rayOpacity * 0.25) + ')');
+                            rayGrad.addColorStop(1, 'rgba(255, 220, 120, 0)');
+                            ctx.fillStyle = rayGrad;
+                            ctx.fill();
+                        }
+
+                        ctx.restore();
+
+                        // --- Glowing sun ---
+                        // Outer glow (large soft halo)
+                        var glowR = sunRadius * minDim * 4;
+                        var outerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+                        outerGlow.addColorStop(0, 'rgba(255, 250, 230, 0.25)');
+                        outerGlow.addColorStop(0.2, 'rgba(255, 240, 200, 0.15)');
+                        outerGlow.addColorStop(0.5, 'rgba(255, 220, 150, 0.06)');
+                        outerGlow.addColorStop(1, 'rgba(255, 200, 100, 0)');
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+                        ctx.fillStyle = outerGlow;
+                        ctx.fill();
+
+                        // Middle glow
+                        var midR = sunRadius * minDim * 2;
+                        var midGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, midR);
+                        midGlow.addColorStop(0, 'rgba(255, 252, 240, 0.4)');
+                        midGlow.addColorStop(0.4, 'rgba(255, 245, 210, 0.2)');
+                        midGlow.addColorStop(1, 'rgba(255, 235, 180, 0)');
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, midR, 0, Math.PI * 2);
+                        ctx.fillStyle = midGlow;
+                        ctx.fill();
+
+                        // Sun core (bright white-yellow disc)
+                        var coreR = sunRadius * minDim;
+                        var coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+                        coreGrad.addColorStop(0, 'rgba(255, 255, 250, 0.95)');
+                        coreGrad.addColorStop(0.5, 'rgba(255, 250, 230, 0.85)');
+                        coreGrad.addColorStop(0.8, 'rgba(255, 240, 200, 0.6)');
+                        coreGrad.addColorStop(1, 'rgba(255, 230, 170, 0.3)');
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+                        ctx.fillStyle = coreGrad;
+                        ctx.fill();
+                    },
+
+                    drawForeground: function (ctx, w, h, state) {
+                        // No foreground effects needed for sunny theme
+                    }
+                };
+            })();
+
             // Default/placeholder theme configuration
             function getDefaultThemeConfig() {
                 return {

@@ -77,7 +77,7 @@ A relaxing, calming fullscreen browser visualisation with animated scenes, confi
 - **Description**: Create the Stormy theme with: dark grey/purple gradient background, ~150 rain drop particles falling diagonally (drawn as short lines), dark cloud shapes at the top (radial gradients), and a lightning flash effect that triggers every 6-16 seconds with a brief screen-wide white overlay that fades out. Keep it atmospheric and hypnotic rather than jarring.
 
 ### TASK-012: Implement the Sunny visualisation
-- **Status**: pending
+- **Status**: done
 - **Priority**: medium
 - **Dependencies**: TASK-003
 - **Description**: Create the Sunny theme with: warm golden radial gradient background, ~30 dust mote particles floating gently upward with subtle drift, a glowing sun positioned in the upper area with a radial glow effect, and 10-12 light rays radiating outward from the sun that slowly rotate and pulse in width/opacity.
