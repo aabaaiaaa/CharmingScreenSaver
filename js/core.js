@@ -25,7 +25,7 @@
             // Theme registry (shared with theme files)
             CV.themes = {};
 
-            const THEME_NAMES = ['watery', 'sandy', 'snowy', 'wavey', 'spacey', 'colourful', 'windy', 'stormy', 'sunny', 'mercurial', 'venusian', 'martian', 'jovian', 'saturnine', 'neptunian', 'europan', 'titanesque', 'ionian', 'enceladean', 'tritonian', 'abyssal', 'coraline', 'auroral', 'twilight', 'misty', 'crystalline', 'embers', 'inkwell', 'pulsar', 'nebular', 'binary', 'volcanic', 'cavern', 'arctic', 'drifting', 'soaring', 'cruising', 'tunnelling', 'coasting', 'diving', 'ascending', 'wandering', 'sailing', 'streaming', 'voyager', 'odyssey', 'genesis', 'spelunker', 'freefall', 'timeline', 'apollo', 'supernova', 'maelstrom', 'earthquake', 'erupting', 'tornado', 'avalanche', 'meteor', 'tsunami', 'bolts', 'solarflare', 'singularity', 'orbiting', 'accreting', 'collapsing', 'lensing', 'spaghettified', 'wormhole', 'tidallocked', 'hawking', 'jettison', 'merging', 'eventhorizon'];
+            const THEME_NAMES = ['watery', 'sandy', 'snowy', 'wavey', 'spacey', 'colourful', 'windy', 'stormy', 'sunny', 'mercurial', 'venusian', 'martian', 'jovian', 'saturnine', 'neptunian', 'europan', 'titanesque', 'ionian', 'enceladean', 'tritonian', 'abyssal', 'coraline', 'auroral', 'twilight', 'misty', 'crystalline', 'embers', 'inkwell', 'pulsar', 'nebular', 'binary', 'volcanic', 'cavern', 'arctic', 'drifting', 'soaring', 'cruising', 'tunnelling', 'coasting', 'diving', 'ascending', 'wandering', 'sailing', 'streaming', 'voyager', 'odyssey', 'genesis', 'spelunker', 'freefall', 'timeline', 'apollo', 'supernova', 'maelstrom', 'earthquake', 'erupting', 'tornado', 'avalanche', 'meteor', 'tsunami', 'bolts', 'solarflare', 'singularity', 'orbiting', 'accreting', 'collapsing', 'lensing', 'spaghettified', 'wormhole', 'tidallocked', 'hawking', 'jettison', 'merging', 'eventhorizon', 'meadow', 'coast', 'cityscape', 'forest', 'mountain', 'lake', 'desert', 'harbour', 'garden', 'wheatfield'];
 
             const THEME_CATEGORIES = {
                 'Theme': ['watery', 'sandy', 'snowy', 'wavey', 'spacey', 'colourful', 'windy', 'stormy', 'sunny'],
@@ -37,7 +37,8 @@
                 'Landscapes': ['volcanic', 'cavern', 'arctic'],
                 'Journey': ['drifting', 'soaring', 'cruising', 'tunnelling', 'coasting', 'diving', 'ascending', 'wandering', 'sailing', 'streaming', 'voyager', 'odyssey', 'genesis', 'spelunker', 'freefall', 'timeline', 'apollo'],
                 'Cataclysmic': ['supernova', 'maelstrom', 'earthquake', 'erupting', 'tornado', 'avalanche', 'meteor', 'tsunami', 'bolts', 'solarflare'],
-                'Black Holes': ['singularity', 'orbiting', 'accreting', 'collapsing', 'lensing', 'spaghettified', 'wormhole', 'tidallocked', 'hawking', 'jettison', 'merging', 'eventhorizon']
+                'Black Holes': ['singularity', 'orbiting', 'accreting', 'collapsing', 'lensing', 'spaghettified', 'wormhole', 'tidallocked', 'hawking', 'jettison', 'merging', 'eventhorizon'],
+                'Diurnal': ['meadow', 'coast', 'cityscape', 'forest', 'mountain', 'lake', 'desert', 'harbour', 'garden', 'wheatfield']
             };
             const THEME_TO_CATEGORY = {};
             (function () {
@@ -88,8 +89,13 @@
                 autoCycle: false,
                 cycleMode: 'sequential',
                 cycleInterval: 30,
-                cycleTimer: 0
+                cycleTimer: 0,
+                frameDate: null,
+                _lastDayTrackerPeriod: null
             };
+
+            // Expose state for theme access
+            CV.state = state;
 
             // Transition state for smooth cross-fade between themes
             const transition = {
@@ -266,6 +272,7 @@
             btnAutoCycle.addEventListener('click', function () {
                 state.autoCycle = !state.autoCycle;
                 state.cycleTimer = 0;
+                state._lastDayTrackerPeriod = null;
                 btnAutoCycle.textContent = state.autoCycle ? 'On' : 'Off';
                 if (state.autoCycle) {
                     btnAutoCycle.classList.add('active');
@@ -273,7 +280,7 @@
                     btnAutoCycle.classList.remove('active');
                 }
                 cycleModeRow.style.display = state.autoCycle ? '' : 'none';
-                cycleIntervalRow.style.display = state.autoCycle ? '' : 'none';
+                cycleIntervalRow.style.display = (state.autoCycle && state.cycleMode !== 'daytracker') ? '' : 'none';
                 savePreferences();
             });
 
@@ -283,6 +290,9 @@
                     btn.classList.add('active');
                     state.cycleMode = btn.dataset.cycleMode;
                     state.cycleTimer = 0;
+                    state._lastDayTrackerPeriod = null;
+                    // Hide interval slider for Day Tracker (switching is time-based)
+                    cycleIntervalRow.style.display = (state.cycleMode === 'daytracker') ? 'none' : '';
                     savePreferences();
                 });
             });
@@ -721,26 +731,40 @@
                 state.timeElapsed += dt;
 
                 if (state.autoCycle) {
-                    state.cycleTimer += dt;
-                    var effectiveInterval = cachedThemeConfig.cycleDuration > 0
-                        ? Math.max(state.cycleInterval, cachedThemeConfig.cycleDuration)
-                        : state.cycleInterval;
-                    if (state.cycleTimer >= effectiveInterval) {
-                        state.cycleTimer = 0;
-                        var nextTheme;
-                        if (state.cycleMode === 'random') {
-                            do { nextTheme = THEME_NAMES[Math.floor(Math.random() * THEME_NAMES.length)]; }
-                            while (nextTheme === state.currentTheme && THEME_NAMES.length > 1);
-                        } else if (state.cycleMode === 'category') {
-                            var cat = THEME_TO_CATEGORY[state.currentTheme];
-                            var catThemes = THEME_CATEGORIES[cat] || THEME_NAMES;
-                            var idx = catThemes.indexOf(state.currentTheme);
-                            nextTheme = catThemes[(idx + 1) % catThemes.length];
-                        } else {
-                            var idx = THEME_NAMES.indexOf(state.currentTheme);
-                            nextTheme = THEME_NAMES[(idx + 1) % THEME_NAMES.length];
+                    if (state.cycleMode === 'daytracker') {
+                        // Day Tracker: switch theme based on current time period
+                        if (CV.diurnal) {
+                            var timeData = CV.diurnal.getTimeData(new Date());
+                            if (timeData.period !== state._lastDayTrackerPeriod) {
+                                state._lastDayTrackerPeriod = timeData.period;
+                                var dtTheme = CV.diurnal.getThemeForPeriod(timeData.period);
+                                if (dtTheme !== state.currentTheme) {
+                                    switchTheme(dtTheme);
+                                }
+                            }
                         }
-                        switchTheme(nextTheme);
+                    } else {
+                        state.cycleTimer += dt;
+                        var effectiveInterval = cachedThemeConfig.cycleDuration > 0
+                            ? Math.max(state.cycleInterval, cachedThemeConfig.cycleDuration)
+                            : state.cycleInterval;
+                        if (state.cycleTimer >= effectiveInterval) {
+                            state.cycleTimer = 0;
+                            var nextTheme;
+                            if (state.cycleMode === 'random') {
+                                do { nextTheme = THEME_NAMES[Math.floor(Math.random() * THEME_NAMES.length)]; }
+                                while (nextTheme === state.currentTheme && THEME_NAMES.length > 1);
+                            } else if (state.cycleMode === 'category') {
+                                var cat = THEME_TO_CATEGORY[state.currentTheme];
+                                var catThemes = THEME_CATEGORIES[cat] || THEME_NAMES;
+                                var idx = catThemes.indexOf(state.currentTheme);
+                                nextTheme = catThemes[(idx + 1) % catThemes.length];
+                            } else {
+                                var idx = THEME_NAMES.indexOf(state.currentTheme);
+                                nextTheme = THEME_NAMES[(idx + 1) % THEME_NAMES.length];
+                            }
+                            switchTheme(nextTheme);
+                        }
                     }
                 }
 
@@ -785,6 +809,7 @@
 
                 // Share a single Date object per frame
                 const frameDate = new Date();
+                state.frameDate = frameDate;
 
                 // Draw Sun & Moon clock on the main canvas
                 drawSunMoonClock(ctx, w, h, frameDate);
@@ -855,15 +880,20 @@
                         btnAutoCycle.textContent = 'On';
                         btnAutoCycle.classList.add('active');
                         cycleModeRow.style.display = '';
+                        // Will be re-evaluated after cycleMode is loaded below
                         cycleIntervalRow.style.display = '';
                     }
 
                     var savedCycleMode = localStorage.getItem('calmVisualiser_cycleMode');
-                    if (savedCycleMode && (savedCycleMode === 'sequential' || savedCycleMode === 'random' || savedCycleMode === 'category')) {
+                    if (savedCycleMode && (savedCycleMode === 'sequential' || savedCycleMode === 'random' || savedCycleMode === 'category' || savedCycleMode === 'daytracker')) {
                         state.cycleMode = savedCycleMode;
                         cycleModeBtns.forEach(function (b) { b.classList.remove('active'); });
                         var targetModeBtn = Array.from(cycleModeBtns).find(function (b) { return b.dataset.cycleMode === savedCycleMode; });
                         if (targetModeBtn) targetModeBtn.classList.add('active');
+                        // Hide interval slider for Day Tracker
+                        if (savedCycleMode === 'daytracker' && state.autoCycle) {
+                            cycleIntervalRow.style.display = 'none';
+                        }
                     }
 
                     if (savedCycleInterval !== null) {
