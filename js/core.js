@@ -61,6 +61,69 @@
             }
             resizeCanvas();
 
+            // --- Day Tracker bar interaction ---
+            var DT_BAR_COLLAPSED = 4;
+            var DT_BAR_EXPANDED = 30;
+            var DT_BAR_HOVER_ZONE = 40; // mouse detection zone from bottom
+
+            canvas.addEventListener('click', function (e) {
+                if (!state.autoCycle || state.cycleMode !== 'daytracker' || !CV.diurnal) return;
+                var h = canvas.height;
+                var w = canvas.width;
+                var barH = DT_BAR_COLLAPSED + (DT_BAR_EXPANDED - DT_BAR_COLLAPSED) * state._dtBarExpand;
+                var barY = h - barH;
+                var clickY = e.clientY;
+                var clickX = e.clientX;
+
+                // Check for LIVE button click (inside bar, right side)
+                if (state._dayTrackerOverride !== null && state._dtBarExpand > 0.5) {
+                    var liveW = 42;
+                    var liveH = 18;
+                    var liveX = w - liveW - 6;
+                    var liveY = barY + (barH - liveH) / 2;
+                    if (clickX >= liveX && clickX <= liveX + liveW && clickY >= liveY && clickY <= liveY + liveH) {
+                        state._dayTrackerOverride = null;
+                        state._lastDayTrackerPeriod = null;
+                        return;
+                    }
+                }
+
+                // Only respond to clicks in the bar area
+                if (clickY < barY - 6) return;
+
+                // Determine which period was clicked
+                var periods = CV.diurnal.PERIODS;
+                var clickHour = (clickX / w) * 24;
+                for (var i = 0; i < periods.length; i++) {
+                    if (clickHour >= periods[i].startHour && clickHour < periods[i].endHour) {
+                        state._dayTrackerOverride = periods[i].name;
+                        var theme = CV.diurnal.getThemeForPeriod(periods[i].name);
+                        if (theme !== state.currentTheme) switchTheme(theme);
+                        return;
+                    }
+                }
+            });
+
+            canvas.addEventListener('mousemove', function (e) {
+                if (!state.autoCycle || state.cycleMode !== 'daytracker' || !CV.diurnal) {
+                    state._dtBarHovered = false;
+                    canvas.style.cursor = '';
+                    return;
+                }
+                var h = canvas.height;
+                if (e.clientY >= h - DT_BAR_HOVER_ZONE) {
+                    state._dtBarHovered = true;
+                    canvas.style.cursor = 'pointer';
+                } else {
+                    state._dtBarHovered = false;
+                    canvas.style.cursor = '';
+                }
+            });
+
+            canvas.addEventListener('mouseleave', function () {
+                state._dtBarHovered = false;
+            });
+
             // --- Fullscreen toggle ---
             function toggleFullscreen() {
                 if (!document.fullscreenElement) {
@@ -91,7 +154,10 @@
                 cycleInterval: 30,
                 cycleTimer: 0,
                 frameDate: null,
-                _lastDayTrackerPeriod: null
+                _lastDayTrackerPeriod: null,
+                _dayTrackerOverride: null,
+                _dtBarExpand: 0,
+                _dtBarHovered: false
             };
 
             // Expose state for theme access
@@ -273,6 +339,7 @@
                 state.autoCycle = !state.autoCycle;
                 state.cycleTimer = 0;
                 state._lastDayTrackerPeriod = null;
+                state._dayTrackerOverride = null;
                 btnAutoCycle.textContent = state.autoCycle ? 'On' : 'Off';
                 if (state.autoCycle) {
                     btnAutoCycle.classList.add('active');
@@ -291,6 +358,7 @@
                     state.cycleMode = btn.dataset.cycleMode;
                     state.cycleTimer = 0;
                     state._lastDayTrackerPeriod = null;
+                    state._dayTrackerOverride = null;
                     // Hide interval slider for Day Tracker (switching is time-based)
                     cycleIntervalRow.style.display = (state.cycleMode === 'daytracker') ? 'none' : '';
                     savePreferences();
@@ -730,10 +798,25 @@
 
                 state.timeElapsed += dt;
 
+                // Set frameDate early so themes receive correct time data
+                // When day tracker override is active, fake the time to the selected period's midpoint
+                var frameDate = new Date();
+                if (state._dayTrackerOverride !== null && CV.diurnal) {
+                    var _ovPeriods = CV.diurnal.PERIODS;
+                    for (var _ovi = 0; _ovi < _ovPeriods.length; _ovi++) {
+                        if (_ovPeriods[_ovi].name === state._dayTrackerOverride) {
+                            var _midH = (_ovPeriods[_ovi].startHour + _ovPeriods[_ovi].endHour) / 2;
+                            frameDate.setHours(Math.floor(_midH), Math.round((_midH % 1) * 60), 0, 0);
+                            break;
+                        }
+                    }
+                }
+                state.frameDate = frameDate;
+
                 if (state.autoCycle) {
                     if (state.cycleMode === 'daytracker') {
-                        // Day Tracker: switch theme based on current time period
-                        if (CV.diurnal) {
+                        // Day Tracker: switch theme based on current time period (only in live mode)
+                        if (CV.diurnal && state._dayTrackerOverride === null) {
                             var timeData = CV.diurnal.getTimeData(new Date());
                             if (timeData.period !== state._lastDayTrackerPeriod) {
                                 state._lastDayTrackerPeriod = timeData.period;
@@ -793,6 +876,151 @@
                     ctx.fillRect(0, barY, w * progress, barH);
                 }
 
+                // Day Tracker timeline bar (animated expand/collapse)
+                if (state.autoCycle && state.cycleMode === 'daytracker' && CV.diurnal) {
+                    // Animate expand/collapse (lerp toward target)
+                    var dtTarget = state._dtBarHovered ? 1 : 0;
+                    var dtSpeed = 6; // animation speed (higher = faster)
+                    if (state._dtBarExpand < dtTarget) {
+                        state._dtBarExpand = Math.min(dtTarget, state._dtBarExpand + dt * dtSpeed);
+                    } else if (state._dtBarExpand > dtTarget) {
+                        state._dtBarExpand = Math.max(dtTarget, state._dtBarExpand - dt * dtSpeed);
+                    }
+                    var dtExp = state._dtBarExpand;
+                    // Ease function for smoother animation
+                    var dtEased = dtExp < 0.5 ? 2 * dtExp * dtExp : 1 - 2 * (1 - dtExp) * (1 - dtExp);
+
+                    var dtPeriods = CV.diurnal.PERIODS;
+                    var dtRealTd = CV.diurnal.getTimeData(new Date());
+                    var dtBarH = DT_BAR_COLLAPSED + (DT_BAR_EXPANDED - DT_BAR_COLLAPSED) * dtEased;
+                    var dtBarY = h - dtBarH;
+                    var dtTotalH = 24;
+                    var dtIsOverride = (state._dayTrackerOverride !== null);
+
+                    // Period segment colours (muted, representative of each time)
+                    var dtSegColors = {
+                        latenight:  [12, 12, 35],
+                        dawn:       [160, 90, 70],
+                        morning:    [90, 150, 200],
+                        midday:     [110, 170, 230],
+                        afternoon:  [190, 160, 100],
+                        dusk:       [180, 90, 55],
+                        evening:    [50, 35, 70],
+                        night:      [18, 22, 48]
+                    };
+
+                    // Backdrop (opacity scales with expand)
+                    ctx.fillStyle = 'rgba(0,0,0,' + (0.15 + 0.2 * dtEased) + ')';
+                    ctx.fillRect(0, dtBarY - 2 * dtEased, w, dtBarH + 2 * dtEased);
+
+                    // Draw each period segment
+                    for (var dti = 0; dti < dtPeriods.length; dti++) {
+                        var dtP = dtPeriods[dti];
+                        var dtX = (dtP.startHour / dtTotalH) * w;
+                        var dtSegW = ((dtP.endHour - dtP.startHour) / dtTotalH) * w;
+                        // Highlight: overridden segment when in override, or real-time segment when live
+                        var dtIsActive = dtIsOverride
+                            ? (dtP.name === state._dayTrackerOverride)
+                            : (dtP.name === dtRealTd.period);
+                        var dtCol = dtSegColors[dtP.name] || [30, 30, 30];
+
+                        // Segment fill
+                        ctx.fillStyle = 'rgba(' + dtCol[0] + ',' + dtCol[1] + ',' + dtCol[2] + ',' + (dtIsActive ? 0.7 : 0.35) + ')';
+                        ctx.fillRect(dtX, dtBarY, dtSegW, dtBarH);
+
+                        // Bright top edge on active segment
+                        if (dtIsActive) {
+                            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                            ctx.fillRect(dtX, dtBarY, dtSegW, 2);
+                        }
+
+                        // Segment divider (fade in with expand)
+                        if (dti > 0 && dtEased > 0.1) {
+                            ctx.fillStyle = 'rgba(255,255,255,' + (0.12 * dtEased) + ')';
+                            ctx.fillRect(dtX, dtBarY, 1, dtBarH);
+                        }
+
+                        // Theme name label (fade in when expanded enough)
+                        if (dtEased > 0.3) {
+                            var dtLabelAlpha = (dtEased - 0.3) / 0.7; // 0→1 over the 0.3–1.0 range
+                            var dtThemeName = CV.diurnal.getThemeForPeriod(dtP.name);
+                            var dtLabel = dtThemeName.charAt(0).toUpperCase() + dtThemeName.slice(1);
+                            ctx.font = (dtIsActive ? '600 ' : '400 ') + '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = 'rgba(255,255,255,' + ((dtIsActive ? 0.9 : 0.45) * dtLabelAlpha) + ')';
+                            if (dtSegW > 44) {
+                                ctx.fillText(dtLabel, dtX + dtSegW / 2, dtBarY + dtBarH * 0.42);
+                            }
+                        }
+
+                        // Time label (fade in when expanded enough)
+                        if (dtEased > 0.5) {
+                            var dtTimeAlpha = (dtEased - 0.5) / 0.5;
+                            var dtStartH = Math.floor(dtP.startHour);
+                            var dtStartM = Math.round((dtP.startHour - dtStartH) * 60);
+                            var dtTimeStr = String(dtStartH).padStart(2, '0') + ':' + String(dtStartM).padStart(2, '0');
+                            ctx.font = '8px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                            ctx.textAlign = 'left';
+                            ctx.textBaseline = 'bottom';
+                            ctx.fillStyle = 'rgba(255,255,255,' + (0.3 * dtTimeAlpha) + ')';
+                            ctx.fillText(dtTimeStr, dtX + 3, dtBarY + dtBarH - 2);
+                        }
+                    }
+
+                    // Real-time indicator (vertical line + triangle when expanded)
+                    var dtTimeX = (dtRealTd.hour / dtTotalH) * w;
+                    var dtIndicatorAlpha = dtIsOverride ? 0.3 : (0.5 + 0.4 * dtEased);
+                    ctx.fillStyle = 'rgba(255,255,255,' + dtIndicatorAlpha + ')';
+                    ctx.fillRect(dtTimeX - 1, dtBarY - 3 * dtEased, 2, dtBarH + 3 * dtEased);
+                    if (dtEased > 0.4) {
+                        var dtTriAlpha = dtIsOverride ? 0.3 : ((dtEased - 0.4) / 0.6);
+                        ctx.fillStyle = 'rgba(255,255,255,' + dtTriAlpha + ')';
+                        ctx.beginPath();
+                        ctx.moveTo(dtTimeX, dtBarY - 6 * dtEased);
+                        ctx.lineTo(dtTimeX - 5, dtBarY - 1);
+                        ctx.lineTo(dtTimeX + 5, dtBarY - 1);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+
+                    // LIVE button (inside bar, right side — shown when override active and bar mostly expanded)
+                    if (dtIsOverride && dtEased > 0.5) {
+                        var liveAlpha = (dtEased - 0.5) / 0.5;
+                        var liveW = 42;
+                        var liveH = 18;
+                        var liveX = w - liveW - 6;
+                        var liveY = dtBarY + (dtBarH - liveH) / 2;
+                        var livePulse = (0.6 + Math.sin(state.timeElapsed * 3) * 0.15) * liveAlpha;
+
+                        // Pill background (manual rounded rect for compatibility)
+                        var lr = 4;
+                        ctx.beginPath();
+                        ctx.moveTo(liveX + lr, liveY);
+                        ctx.lineTo(liveX + liveW - lr, liveY);
+                        ctx.arcTo(liveX + liveW, liveY, liveX + liveW, liveY + lr, lr);
+                        ctx.lineTo(liveX + liveW, liveY + liveH - lr);
+                        ctx.arcTo(liveX + liveW, liveY + liveH, liveX + liveW - lr, liveY + liveH, lr);
+                        ctx.lineTo(liveX + lr, liveY + liveH);
+                        ctx.arcTo(liveX, liveY + liveH, liveX, liveY + liveH - lr, lr);
+                        ctx.lineTo(liveX, liveY + lr);
+                        ctx.arcTo(liveX, liveY, liveX + lr, liveY, lr);
+                        ctx.closePath();
+                        ctx.fillStyle = 'rgba(220, 60, 60, ' + livePulse + ')';
+                        ctx.fill();
+
+                        // LIVE text
+                        ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillStyle = 'rgba(255,255,255,' + (0.95 * liveAlpha) + ')';
+                        ctx.fillText('LIVE', liveX + liveW / 2, liveY + liveH / 2);
+                    }
+                } else {
+                    // Reset expand when day tracker is not active
+                    state._dtBarExpand = 0;
+                }
+
                 // Cross-fade transition overlay (old frame fading out)
                 if (transition.active) {
                     transition.progress += dt / transition.duration;
@@ -807,16 +1035,11 @@
                     }
                 }
 
-                // Share a single Date object per frame
-                const frameDate = new Date();
-                state.frameDate = frameDate;
-
-                // Draw Sun & Moon clock on the main canvas
-                drawSunMoonClock(ctx, w, h, frameDate);
-
-                // Update clock overlays
-                updateDigitalClock(frameDate);
-                updateAnalogueClock(frameDate);
+                // Clocks always use real time (not the override)
+                var realDate = new Date();
+                drawSunMoonClock(ctx, w, h, realDate);
+                updateDigitalClock(realDate);
+                updateAnalogueClock(realDate);
             }
 
             // --- Handle window resize: consolidated single handler ---

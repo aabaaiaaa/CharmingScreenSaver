@@ -31,12 +31,12 @@
     // Period-to-theme mapping for Day Tracker mode
     var PERIOD_THEME_MAP = {
         latenight:  'desert',
-        dawn:       'mountain',
-        morning:    'meadow',
+        dawn:       'harbour',
+        morning:    'mountain',
         midday:     'coast',
-        afternoon:  'wheatfield',
-        dusk:       'lake',
-        evening:    'garden',
+        afternoon:  'meadow',
+        dusk:       'garden',
+        evening:    'lake',
         night:      'cityscape'
     };
 
@@ -118,12 +118,91 @@
         return PERIOD_THEME_MAP[periodName] || 'meadow';
     }
 
+    // Shared drawing helper: sky gradient from time data
+    function drawSkyGradient(ctx, w, h, td) {
+        var grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, colorToRgb(td.palette.zenith));
+        grad.addColorStop(0.5, colorToRgb(td.palette.mid));
+        grad.addColorStop(1, colorToRgb(td.palette.horizon));
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+    }
+
+    // Shared drawing helper: stars based on brightness (more visible at night)
+    function drawStars(ctx, w, h, td, t, seed) {
+        var starAlpha = Math.max(0, 1 - td.brightness * 3);
+        if (starAlpha < 0.01) return;
+        seed = seed || 42;
+        var count = 80;
+        for (var i = 0; i < count; i++) {
+            var sx = ((Math.sin(seed + i * 127.1) * 43758.5453) % 1 + 1) % 1;
+            var sy = ((Math.sin(seed + i * 311.7) * 43758.5453) % 1 + 1) % 1 * 0.6;
+            var twinkle = Math.sin(t * (0.5 + sx * 2) + i * 3.7) * 0.3 + 0.7;
+            var size = 0.5 + sx * 1.5;
+            ctx.beginPath();
+            ctx.arc(sx * w, sy * h, size, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,240,' + (starAlpha * twinkle * 0.8) + ')';
+            ctx.fill();
+        }
+    }
+
+    // Shared drawing helper: simple sun disc
+    function drawSun(ctx, w, h, td, t) {
+        if (td.brightness < 0.2) return;
+        var sunProgress = Math.max(0, Math.min(1, (td.hour - 5) / 14));
+        var sunX = w * (0.15 + sunProgress * 0.7);
+        var sunY = h * (0.6 - Math.sin(sunProgress * Math.PI) * 0.5);
+        var sunAlpha = Math.min(1, (td.brightness - 0.2) * 1.5);
+        var r = Math.min(w, h) * 0.03;
+        var glow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, r * 6);
+        glow.addColorStop(0, 'rgba(255,230,150,' + (sunAlpha * 0.3) + ')');
+        glow.addColorStop(0.3, 'rgba(255,200,80,' + (sunAlpha * 0.1) + ')');
+        glow.addColorStop(1, 'rgba(255,180,50,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, r * 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,240,200,' + sunAlpha + ')';
+        ctx.fill();
+    }
+
+    // Shared drawing helper: simple moon disc
+    function drawMoon(ctx, w, h, td, t) {
+        if (td.brightness > 0.15) return;
+        var moonAlpha = Math.max(0, (0.15 - td.brightness) * 8);
+        var moonX = w * 0.75;
+        var moonY = h * 0.15;
+        var r = Math.min(w, h) * 0.025;
+        var glow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, r * 5);
+        glow.addColorStop(0, 'rgba(200,210,255,' + (moonAlpha * 0.15) + ')');
+        glow.addColorStop(1, 'rgba(150,170,220,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, r * 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(220,225,240,' + moonAlpha + ')';
+        ctx.fill();
+        // Crescent shadow
+        ctx.beginPath();
+        ctx.arc(moonX + r * 0.4, moonY - r * 0.1, r * 0.8, 0, Math.PI * 2);
+        ctx.fillStyle = colorToRgb(td.palette.zenith, moonAlpha * 0.9);
+        ctx.fill();
+    }
+
     // Expose on CV namespace
     CV.diurnal = {
         getTimeData: getTimeData,
         lerpColor: lerpColor,
         colorToRgb: colorToRgb,
         getThemeForPeriod: getThemeForPeriod,
+        drawSkyGradient: drawSkyGradient,
+        drawStars: drawStars,
+        drawSun: drawSun,
+        drawMoon: drawMoon,
         PERIODS: PERIODS,
         PALETTES: PALETTES
     };
